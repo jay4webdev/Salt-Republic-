@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, not, like } from "drizzle-orm";
 import { list } from "@vercel/blob";
 import { readdir, stat } from "fs/promises";
 import path from "path";
@@ -180,6 +180,11 @@ export async function syncAllBlobMedia(): Promise<{ ok: boolean; count: number; 
       return { ok: true, count: 0 };
     }
 
+    // Purge any media entries that are not in Vercel Blob storage
+    await db
+      .delete(media)
+      .where(not(like(media.url, "%vercel-storage.com%")));
+
     let syncedCount = 0;
     for (const b of blobs) {
       const pathname = b.pathname || "";
@@ -235,18 +240,20 @@ export async function syncAllBlobMedia(): Promise<{ ok: boolean; count: number; 
 
 export async function getAllMedia(): Promise<MediaItem[]> {
   try {
-    const rows: MediaItem[] = await db.select().from(media).orderBy(desc(media.createdAt));
+    // Only return media hosted in Vercel Blob storage
+    const rows: MediaItem[] = await db
+      .select()
+      .from(media)
+      .where(like(media.url, "%vercel-storage.com%"))
+      .orderBy(desc(media.createdAt));
+
     const existingUrls = new Set(rows.map((r: MediaItem) => r.url));
 
-    // Ensure any local uploads or Vercel Blob store items are seamlessly synced into DB & view
-    const [syncedLocals, syncedBlobs] = await Promise.all([
-      syncLocalUploadsIntoDatabase(existingUrls),
-      syncBlobItemsIntoDatabase(existingUrls),
-    ]);
+    // Ensure all Vercel Blob store items are seamlessly synced into DB & view
+    const syncedBlobs = await syncBlobItemsIntoDatabase(existingUrls);
 
-    const allNew = [...syncedLocals, ...syncedBlobs];
-    if (allNew.length > 0) {
-      return [...allNew, ...rows].sort(
+    if (syncedBlobs.length > 0) {
+      return [...syncedBlobs, ...rows].sort(
         (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       );
     }
@@ -254,12 +261,10 @@ export async function getAllMedia(): Promise<MediaItem[]> {
     return rows;
   } catch (e) {
     console.error("[getAllMedia] Database query error:", e);
-    // Even if DB fails, attempt to list from local and Blob
     try {
       const existing = new Set<string>();
-      const locals = await syncLocalUploadsIntoDatabase(existing);
-      const synced = await syncBlobItemsIntoDatabase(existing);
-      return [...locals, ...synced];
+      const blobs = await syncBlobItemsIntoDatabase(existing);
+      return blobs;
     } catch {
       return [];
     }

@@ -13,13 +13,13 @@ export type SiteImagesConfig = {
 };
 
 export const DEFAULT_SITE_IMAGES: SiteImagesConfig = {
-  heroImage: "/images/hero.jpg",
-  diningImage: "/images/dining.jpg",
-  menuModalImage: "/images/food-menu.jpg",
-  finalCtaImage: "/images/yacht-night.jpg",
-  b2bHeroImage: "/images/hero.jpg",
-  bookingBannerImage: "/images/yacht-exterior.jpg",
-  thankYouBannerImage: "/images/hero.jpg",
+  heroImage: "https://at02gf7f3no98fex.public.blob.vercel-storage.com/Aerial%20Front%20Starboard%20Quarter%20View%20-%20Underway.webp",
+  diningImage: "https://at02gf7f3no98fex.public.blob.vercel-storage.com/food.png",
+  menuModalImage: "https://at02gf7f3no98fex.public.blob.vercel-storage.com/lunch-menu-1791092723474-f0tm.jpeg",
+  finalCtaImage: "https://at02gf7f3no98fex.public.blob.vercel-storage.com/maldives-atoll-sunset-1791090468781-azpz.png",
+  b2bHeroImage: "https://at02gf7f3no98fex.public.blob.vercel-storage.com/Aerial%20Overhead%20View%20-%20Underway%20Between%20Islands.webp",
+  bookingBannerImage: "https://at02gf7f3no98fex.public.blob.vercel-storage.com/salt%20republic%20yacht%20%282%29.webp",
+  thankYouBannerImage: "https://at02gf7f3no98fex.public.blob.vercel-storage.com/Stern%20Eye-Level%20View%20-%20Underway%20with%20Dolphins.webp",
 };
 
 export async function getSiteImagesConfig(): Promise<SiteImagesConfig> {
