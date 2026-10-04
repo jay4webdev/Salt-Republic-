@@ -48,22 +48,27 @@ export default function YachtForm({
 
   const [heroImage, setHeroImage] = useState<string>(yacht.heroImage || "/images/hero.jpg");
   const [gallery, setGallery] = useState<GalleryImage[]>(parsedInitialGallery);
+  const lastServerGalleryRef = useRef(JSON.stringify(parsedInitialGallery));
 
-  // Sync state if server prop updates
+  // Sync state if server prop updates externally
   useEffect(() => {
-    const freshGallery: GalleryImage[] = Array.isArray(yacht.gallery)
-      ? yacht.gallery
-      : typeof yacht.gallery === "string"
-        ? (() => {
-            try {
-              const p = JSON.parse(yacht.gallery);
-              return Array.isArray(p) ? p : [];
-            } catch {
-              return [];
-            }
-          })()
-        : [];
-    setGallery(freshGallery);
+    const currentStr = JSON.stringify(yacht.gallery);
+    if (currentStr !== lastServerGalleryRef.current) {
+      lastServerGalleryRef.current = currentStr;
+      const freshGallery: GalleryImage[] = Array.isArray(yacht.gallery)
+        ? yacht.gallery
+        : typeof yacht.gallery === "string"
+          ? (() => {
+              try {
+                const p = JSON.parse(yacht.gallery);
+                return Array.isArray(p) ? p : [];
+              } catch {
+                return [];
+              }
+            })()
+          : [];
+      setGallery(freshGallery);
+    }
     if (yacht.heroImage) setHeroImage(yacht.heroImage);
   }, [yacht.gallery, yacht.heroImage]);
 
@@ -96,13 +101,17 @@ export default function YachtForm({
   async function removeGalleryImage(index: number) {
     const updated = gallery.filter((_, i) => i !== index);
     setGallery(updated);
+    lastServerGalleryRef.current = JSON.stringify(updated);
     setGallerySaving(true);
+    setGalleryError("");
     const res = await saveYachtGalleryOnly(updated);
     setGallerySaving(false);
     if (res.ok) {
       setGallerySaved(true);
       setTimeout(() => setGallerySaved(false), 3000);
       router.refresh();
+    } else {
+      setGalleryError(res.error || "Failed to remove image from gallery.");
     }
   }
 
@@ -401,7 +410,7 @@ export default function YachtForm({
                       <button
                         type="button"
                         onClick={() => removeGalleryImage(idx)}
-                        className="absolute top-2 right-2 rounded-xs bg-red-700 p-1.5 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-800 shadow-sm"
+                        className="absolute top-2 right-2 rounded-xs bg-red-700/90 hover:bg-red-800 p-1.5 text-white transition-opacity shadow-sm z-10"
                         title="Remove image from gallery"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
@@ -421,6 +430,17 @@ export default function YachtForm({
                         className="field-input py-1 text-xs"
                         placeholder="e.g. Master Stateroom"
                       />
+                      <div className="mt-2.5 pt-2 border-t border-navy-900/10 flex items-center justify-between">
+                        <span className="text-[10px] text-stone font-mono">Photo #{idx + 1}</span>
+                        <button
+                          type="button"
+                          onClick={() => removeGalleryImage(idx)}
+                          className="text-red-700 hover:text-red-900 text-xs font-semibold inline-flex items-center gap-1 hover:underline"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                          <span>Remove from Gallery</span>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}

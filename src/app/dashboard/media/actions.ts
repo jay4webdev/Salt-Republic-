@@ -420,7 +420,16 @@ export async function removeImageFromSiteGalleryAction(src: string) {
       ? existing.gallery
       : [];
 
-    const updated = currentGallery.filter((g) => g.src !== src);
+    const normSrc = (src || "").trim().split("?")[0];
+    const updated = currentGallery.filter((g) => {
+      const gNorm = (g.src || "").trim().split("?")[0];
+      return (
+        gNorm !== normSrc &&
+        encodeURI(gNorm) !== encodeURI(normSrc) &&
+        decodeURI(gNorm) !== decodeURI(normSrc) &&
+        decodeURIComponent(gNorm) !== decodeURIComponent(normSrc)
+      );
+    });
 
     await db
       .update(yachts)

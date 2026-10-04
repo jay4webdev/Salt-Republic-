@@ -53,20 +53,6 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" key="font-preconnect-1" />
-        <link
-          rel="preconnect"
-          href="https://fonts.gstatic.com"
-          crossOrigin="anonymous"
-          key="font-preconnect-2"
-        />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Jost:wght@200;300;400;500;600&family=Manrope:wght@300;400;500;600;700&display=swap"
-          rel="stylesheet"
-          key="google-fonts-stylesheet"
-        />
-      </head>
       <body className="min-h-screen bg-navy-950 text-ivory antialiased selection:bg-teal-400 selection:text-navy-950">
         {children}
       </body>

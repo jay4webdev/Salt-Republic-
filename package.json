@@ -3,8 +3,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3000 -H 0.0.0.0",
-    "build": "next build",
-    "start": "node server.js",
+    "build": "NODE_ENV=production next build && node scripts/prepare-dist.js",
+    "start": "node server.ts",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit"
   },

@@ -71,18 +71,21 @@ export default function MediaManager({
   const [buttonConfig, setButtonConfig] = useState<ButtonDownloadsConfig>(initialConfig);
   const [siteImages, setSiteImages] = useState<SiteImagesConfig>(initialSiteImages);
 
-  const [prevInitialGallery, setPrevInitialGallery] = useState<{ src: string; label: string }[]>(initialYachtGallery);
   const [yachtGallery, setYachtGallery] = useState<{ src: string; label: string }[]>(initialYachtGallery);
+  const lastServerGalleryRef = useRef(JSON.stringify(initialYachtGallery));
 
   if (initialMedia !== prevInitialMedia) {
     setPrevInitialMedia(initialMedia);
     setItems(initialMedia);
   }
 
-  if (initialYachtGallery !== prevInitialGallery) {
-    setPrevInitialGallery(initialYachtGallery);
-    setYachtGallery(initialYachtGallery);
-  }
+  useEffect(() => {
+    const currentStr = JSON.stringify(initialYachtGallery);
+    if (currentStr !== lastServerGalleryRef.current) {
+      lastServerGalleryRef.current = currentStr;
+      setYachtGallery(initialYachtGallery);
+    }
+  }, [initialYachtGallery]);
 
   const [activeTab, setActiveTab] = useState<"library" | "gallery" | "site-images" | "buttons">("library");
   const [gallerySaving, setGallerySaving] = useState(false);
@@ -507,24 +510,36 @@ export default function MediaManager({
     }
   }
 
-  async function handleRemoveFromGallery(src: string) {
-    const normSrc = src.split("?")[0];
-    const updated = yachtGallery.filter((g) => {
-      const gNorm = (g.src || "").split("?")[0];
-      return (
-        gNorm !== normSrc &&
-        decodeURI(gNorm) !== decodeURI(normSrc) &&
-        encodeURI(gNorm) !== encodeURI(normSrc)
-      );
-    });
+  async function handleRemoveFromGallery(indexOrSrc: number | string) {
+    let updated: { src: string; label: string }[];
+    if (typeof indexOrSrc === "number") {
+      updated = yachtGallery.filter((_, i) => i !== indexOrSrc);
+    } else {
+      const normSrc = (indexOrSrc || "").trim().split("?")[0];
+      updated = yachtGallery.filter((g) => {
+        const gNorm = (g.src || "").trim().split("?")[0];
+        return (
+          gNorm !== normSrc &&
+          decodeURI(gNorm) !== decodeURI(normSrc) &&
+          encodeURI(gNorm) !== encodeURI(normSrc) &&
+          decodeURIComponent(gNorm) !== decodeURIComponent(normSrc)
+        );
+      });
+    }
 
     setYachtGallery(updated);
+    lastServerGalleryRef.current = JSON.stringify(updated);
     setGallerySaving(true);
+    setGalleryError("");
     const res = await saveSiteGalleryAction(updated);
     setGallerySaving(false);
     if (res.ok) {
       setGallerySaved(true);
-      setTimeout(() => setGallerySaved(false), 3000);
+      setGalleryFeedback({ ok: true, message: "Photo removed from Site Gallery." });
+      setTimeout(() => {
+        setGallerySaved(false);
+        setGalleryFeedback(null);
+      }, 3000);
       router.refresh();
     } else {
       setGalleryError(res.error || "Failed to remove image from gallery.");
@@ -1245,7 +1260,7 @@ export default function MediaManager({
                         </span>
                       </div>
 
-                      {/* Move Order Buttons */}
+                      {/* Move Order Buttons & Quick Remove */}
                       <div className="absolute top-2 right-2 flex items-center gap-1 bg-navy-950/80 p-1 rounded-xs backdrop-blur-xs">
                         <button
                           type="button"
@@ -1264,6 +1279,14 @@ export default function MediaManager({
                           title="Move photo later in order"
                         >
                           <ArrowDown className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveFromGallery(idx)}
+                          className="p-1 text-red-400 hover:text-red-300 ml-1 border-l border-white/20 pl-1.5 transition-colors"
+                          title="Remove photo from gallery"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
                         </button>
                       </div>
 
@@ -1338,7 +1361,7 @@ export default function MediaManager({
 
                         <button
                           type="button"
-                          onClick={() => handleRemoveFromGallery(item.src)}
+                          onClick={() => handleRemoveFromGallery(idx)}
                           className="text-red-700 hover:text-red-900 inline-flex items-center gap-1 text-[11px] p-1 font-medium"
                           title="Remove from Site Gallery"
                         >
