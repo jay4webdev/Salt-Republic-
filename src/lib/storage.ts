@@ -1,10 +1,34 @@
-import { put, del } from "@vercel/blob";
+import { put, del, list } from "@vercel/blob";
 import { mkdir, writeFile, unlink } from "fs/promises";
 import path from "path";
 
 export interface StoredFileResult {
   url: string;
   storageProvider: "blob" | "local";
+}
+
+/**
+ * Standard store identifier for the Vercel Blob bucket.
+ */
+export function getBlobStoreId(): string {
+  const candidates = [
+    process.env.BLOB_STORE_ID,
+    process.env.SR_BLOB_STORE_ID,
+  ];
+
+  for (const raw of candidates) {
+    if (!raw || typeof raw !== "string") continue;
+    let storeId = raw.trim();
+    if (storeId.includes("=")) {
+      storeId = storeId.split("=")[1]?.trim() || storeId;
+    }
+    storeId = storeId.replace(/^["']|["']$/g, "").trim();
+    if (storeId) {
+      return storeId;
+    }
+  }
+
+  return "store_At02gF7f3no98fex";
 }
 
 /**
@@ -37,6 +61,42 @@ export function getBlobToken(): string | null {
 
   // Fallback default token provided for this project
   return "vercel_blob_rw_At02gF7f3no98fex_LdYUsSFofADi9FwknusGk5kpIsNVFb";
+}
+
+/**
+ * Validates connectivity to the Vercel Blob storage bucket.
+ */
+export async function verifyBlobConnection(): Promise<{
+  ok: boolean;
+  storeId: string;
+  count?: number;
+  error?: string;
+}> {
+  const storeId = getBlobStoreId();
+  const token = getBlobToken();
+
+  if (!token) {
+    return {
+      ok: false,
+      storeId,
+      error: "Vercel Blob token is not configured.",
+    };
+  }
+
+  try {
+    const res = await list({ token, limit: 1 });
+    return {
+      ok: true,
+      storeId,
+      count: res.blobs.length,
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      storeId,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
 }
 
 /**

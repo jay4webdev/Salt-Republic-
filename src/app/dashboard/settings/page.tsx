@@ -25,6 +25,7 @@ export default async function SettingsPage() {
         bookingEmail={bookingEmail || TEAM_EMAIL_FALLBACK}
         email={status.email}
         sheets={status.sheets}
+        blob={status.blob}
         outbox={queued}
       />
     </>

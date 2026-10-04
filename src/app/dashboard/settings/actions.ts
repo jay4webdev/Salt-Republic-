@@ -10,6 +10,7 @@ import {
   sendTestEmail,
   sendTestSheetRow,
 } from "@/lib/integrations";
+import { verifyBlobConnection } from "@/lib/storage";
 
 export type ActionResult = { ok: boolean; message: string };
 
@@ -44,6 +45,19 @@ export async function testSheetsConnection(): Promise<ActionResult> {
   return result.ok
     ? { ok: true, message: "Test row appended to your Google Sheet." }
     : { ok: false, message: result.error ?? "Test row could not be sent." };
+}
+
+export async function testBlobStorageConnection(): Promise<ActionResult> {
+  const result = await verifyBlobConnection();
+  return result.ok
+    ? {
+        ok: true,
+        message: `Successfully connected to Vercel Blob store (${result.storeId}). Cloud CDN storage is active and ready.`,
+      }
+    : {
+        ok: false,
+        message: result.error ?? "Failed to connect to Vercel Blob storage.",
+      };
 }
 
 export async function retryBookingDelivery(

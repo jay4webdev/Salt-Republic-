@@ -5,6 +5,7 @@ import { db } from "@/db";
 import { b2bEnquiries, bookings, outbox } from "@/db/schema";
 import { getSetting } from "./queries";
 import { formatDateTime, formatLongDate, formatTime } from "./format";
+import { getBlobToken, getBlobStoreId } from "./storage";
 
 type Booking = typeof bookings.$inferSelect;
 
@@ -89,6 +90,8 @@ export function detectSheetsProvider(): SheetsProvider {
 export function integrationStatus() {
   const email = detectEmailProvider();
   const sheets = detectSheetsProvider();
+  const hasBlob = Boolean(getBlobToken());
+  const storeId = getBlobStoreId();
   return {
     email: {
       provider: email,
@@ -119,6 +122,15 @@ export function integrationStatus() {
         sheets === "none"
           ? "Add GOOGLE_SHEETS_WEBHOOK_URL, or GOOGLE_SHEETS_SPREADSHEET_ID + GOOGLE_SHEETS_CLIENT_EMAIL + GOOGLE_SHEETS_PRIVATE_KEY."
           : "Each booking request is appended as one row.",
+    },
+    blob: {
+      provider: hasBlob ? "vercel-blob" : "local",
+      configured: hasBlob,
+      storeId,
+      label: "Vercel Blob Storage",
+      hint: hasBlob
+        ? `Connected to ${storeId}. Assets and brochure PDFs are stored and accelerated on Vercel Edge CDN.`
+        : "Vercel Blob token not configured. Falling back to local filesystem uploads.",
     },
   };
 }

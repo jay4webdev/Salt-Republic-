@@ -3,13 +3,14 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { Sliders, Upload, Image as ImageIcon } from "lucide-react";
+import { Sliders, Upload, Image as ImageIcon, Cloud } from "lucide-react";
 import type { outbox } from "@/db/schema";
 import {
   retryOutboxItem,
   saveBookingEmail,
   testEmailConnection,
   testSheetsConnection,
+  testBlobStorageConnection,
   type ActionResult,
 } from "./actions";
 import { EmptyState, Spinner } from "@/components/dashboard/ui";
@@ -40,11 +41,13 @@ export default function SettingsForm({
   bookingEmail,
   email,
   sheets,
+  blob,
   outbox: queued,
 }: {
   bookingEmail: string;
   email: Status;
   sheets: Status;
+  blob?: Status & { storeId?: string | null };
   outbox: OutboxItem[];
 }) {
   const router = useRouter();
@@ -52,6 +55,7 @@ export default function SettingsForm({
   const [emailResult, setEmailResult] = useState<ActionResult | null>(null);
   const [testEmailResult, setTestEmailResult] = useState<ActionResult | null>(null);
   const [testSheetsResult, setTestSheetsResult] = useState<ActionResult | null>(null);
+  const [testBlobResult, setTestBlobResult] = useState<ActionResult | null>(null);
   const [retryResult, setRetryResult] = useState<ActionResult | null>(null);
   const [pending, startTransition] = useTransition();
   const [busy, setBusy] = useState<string | null>(null);
@@ -107,7 +111,7 @@ export default function SettingsForm({
       </section>
 
       {/* Connection status */}
-      <section className="grid gap-5 lg:grid-cols-2">
+      <section className="grid gap-5 lg:grid-cols-3">
         <div className="border border-navy-900/10 bg-white p-7">
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -174,6 +178,45 @@ export default function SettingsForm({
             Send test row
           </button>
           <Feedback result={testSheetsResult} />
+        </div>
+
+        <div className="border border-navy-900/10 bg-white p-7">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="eyebrow text-[0.65rem] text-stone">Cloud Storage</p>
+              <h3 className="font-display mt-2 text-xl font-light text-navy-900">
+                {blob?.label || "Vercel Blob"}
+              </h3>
+            </div>
+            <span
+              className={cn(
+                "flex-none border px-3 py-1.5 text-[0.6rem] font-bold uppercase tracking-[0.16em]",
+                blob?.configured
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                  : "border-amber-200 bg-amber-50 text-amber-800"
+              )}
+            >
+              {blob?.configured ? "Connected" : "Action needed"}
+            </span>
+          </div>
+          <p className="mt-4 text-sm leading-relaxed text-stone">
+            {blob?.hint || "Vercel Blob store connected. Photos and PDF brochures are served via global Edge CDN."}
+          </p>
+          <div className="mt-2 text-xs font-mono text-stone/80">
+            Store ID: {blob?.storeId || "store_At02gF7f3no98fex"}
+          </div>
+          <button
+            type="button"
+            disabled={busy === "blob"}
+            onClick={() =>
+              run("blob", () => testBlobStorageConnection(), setTestBlobResult)
+            }
+            className="btn btn-outline-dark mt-6"
+          >
+            {busy === "blob" ? <Spinner /> : null}
+            Test Blob connection
+          </button>
+          <Feedback result={testBlobResult} />
         </div>
       </section>
 

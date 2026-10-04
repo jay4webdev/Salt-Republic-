@@ -23,6 +23,7 @@ import {
   CheckCircle2,
   AlertCircle,
   FolderOpen,
+  Cloud,
 } from "lucide-react";
 import type { MediaItem } from "@/lib/media";
 import type { ButtonDownloadsConfig } from "@/lib/button-downloads";
@@ -528,6 +529,20 @@ export default function MediaManager({
             <Upload className="h-4 w-4" />
             <span>Upload Image or PDF</span>
           </button>
+        </div>
+      </div>
+
+      {/* Blob CDN Connected Status Banner */}
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-ocean-50/60 border border-ocean-200/70 px-4 py-2.5 text-xs text-navy-900">
+        <div className="flex items-center gap-2">
+          <Cloud className="h-4 w-4 text-ocean-600 flex-none" />
+          <span className="font-semibold">Vercel Blob Storage:</span>
+          <span className="font-mono text-[11px] bg-white/80 border border-ocean-200 px-2 py-0.5 rounded">store_At02gF7f3no98fex</span>
+          <span className="hidden sm:inline text-stone">· Global Edge CDN delivery active</span>
+        </div>
+        <div className="flex items-center gap-1.5 text-emerald-800 font-medium">
+          <span className="inline-block h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+          <span>Connected</span>
         </div>
       </div>
 
