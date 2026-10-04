@@ -82,7 +82,7 @@ async function syncBlobItemsIntoDatabase(existingUrls: Set<string>): Promise<Med
   try {
     const listPromise = list({ token });
     const timeoutPromise = new Promise<{ blobs: any[] }>((resolve) =>
-      setTimeout(() => resolve({ blobs: [] }), 3000)
+      setTimeout(() => resolve({ blobs: [] }), 12000)
     );
     const { blobs } = await Promise.race([listPromise, timeoutPromise]);
     if (!blobs || blobs.length === 0) return [];
@@ -91,7 +91,8 @@ async function syncBlobItemsIntoDatabase(existingUrls: Set<string>): Promise<Med
       if (existingUrls.has(b.url)) continue;
 
       const pathname = b.pathname || "";
-      const filename = pathname.split("/").pop() || "uploaded-file";
+      const rawFilename = pathname.split("/").pop() || "uploaded-file";
+      const filename = decodeURIComponent(rawFilename);
       const ext = filename.includes(".") ? "." + filename.split(".").pop()?.toLowerCase() : "";
       const isPdf = ext === ".pdf" || pathname.toLowerCase().endsWith(".pdf");
       const category: MediaCategory = isPdf ? "pdf" : "image";
@@ -101,8 +102,8 @@ async function syncBlobItemsIntoDatabase(existingUrls: Set<string>): Promise<Med
       const rawName = filename.replace(/\.[^/.]+$/, "");
       const cleanName = rawName
         .replace(/-\d{10,}-[a-z0-9]+$/, "")
-        .replace(/-/g, " ")
-        .replace(/_/g, " ")
+        .replace(/[-_]/g, " ")
+        .replace(/\s+/g, " ")
         .trim();
       const originalName = cleanName.length > 0
         ? cleanName.charAt(0).toUpperCase() + cleanName.slice(1) + (isPdf ? " (PDF)" : "")
@@ -121,7 +122,14 @@ async function syncBlobItemsIntoDatabase(existingUrls: Set<string>): Promise<Med
             altText: originalName,
             createdAt: b.uploadedAt ? new Date(b.uploadedAt) : new Date(),
           })
-          .onConflictDoNothing()
+          .onConflictDoUpdate({
+            target: media.url,
+            set: {
+              originalName,
+              sizeBytes: b.size || 0,
+              category,
+            },
+          })
           .returning();
 
         if (inserted) {
@@ -148,6 +156,73 @@ async function syncBlobItemsIntoDatabase(existingUrls: Set<string>): Promise<Med
   }
 
   return newlyAdded;
+}
+
+/**
+ * Manually force a complete bidirectional sync of all Vercel Blob store items into the database.
+ */
+export async function syncAllBlobMedia(): Promise<{ ok: boolean; count: number; error?: string }> {
+  try {
+    const token = getBlobToken();
+    if (!token) {
+      return { ok: false, count: 0, error: "Vercel Blob token not configured." };
+    }
+    const { blobs } = await list({ token });
+    if (!blobs || blobs.length === 0) {
+      return { ok: true, count: 0 };
+    }
+
+    let syncedCount = 0;
+    for (const b of blobs) {
+      const pathname = b.pathname || "";
+      const rawFilename = pathname.split("/").pop() || "uploaded-file";
+      const filename = decodeURIComponent(rawFilename);
+      const ext = filename.includes(".") ? "." + filename.split(".").pop()?.toLowerCase() : "";
+      const isPdf = ext === ".pdf" || pathname.toLowerCase().endsWith(".pdf");
+      const category: MediaCategory = isPdf ? "pdf" : "image";
+      const mimeType = isPdf ? "application/pdf" : "image/jpeg";
+
+      const rawName = filename.replace(/\.[^/.]+$/, "");
+      const cleanName = rawName
+        .replace(/-\d{10,}-[a-z0-9]+$/, "")
+        .replace(/[-_]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+      const originalName = cleanName.length > 0
+        ? cleanName.charAt(0).toUpperCase() + cleanName.slice(1) + (isPdf ? " (PDF)" : "")
+        : filename;
+
+      await db
+        .insert(media)
+        .values({
+          url: b.url,
+          filename,
+          originalName,
+          mimeType,
+          sizeBytes: b.size || 0,
+          category,
+          altText: originalName,
+          createdAt: b.uploadedAt ? new Date(b.uploadedAt) : new Date(),
+        })
+        .onConflictDoUpdate({
+          target: media.url,
+          set: {
+            originalName,
+            sizeBytes: b.size || 0,
+            category,
+          },
+        });
+      syncedCount++;
+    }
+
+    return { ok: true, count: syncedCount };
+  } catch (err) {
+    return {
+      ok: false,
+      count: 0,
+      error: err instanceof Error ? err.message : "Sync error",
+    };
+  }
 }
 
 export async function getAllMedia(): Promise<MediaItem[]> {

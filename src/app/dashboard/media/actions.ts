@@ -14,6 +14,7 @@ import {
   saveSiteImagesConfig,
   type SiteImagesConfig,
 } from "@/lib/site-images";
+import { syncAllBlobMedia } from "@/lib/media";
 
 function revalidateAllMediaConsumers() {
   revalidatePath("/dashboard/media");
@@ -195,21 +196,55 @@ export async function replaceMediaAction(id: number, formData: FormData) {
   }
 }
 
-export async function deleteMediaAction(id: number) {
+export async function deleteMediaAction(id: number, urlParam?: string) {
   try {
-    const rows = await db.select().from(media).where(eq(media.id, id)).limit(1);
-    const item = rows[0];
-    if (!item) return { ok: false as const, error: "Media item not found." };
+    let targetUrl = (urlParam || "").trim();
 
-    await removeFile(item.url).catch(() => {});
-    await db.delete(media).where(eq(media.id, id));
+    if (id && id > 0) {
+      const rows = await db.select().from(media).where(eq(media.id, id)).limit(1);
+      if (rows[0]) {
+        targetUrl = targetUrl || rows[0].url;
+      }
+    }
+
+    // 1. Remove the physical or cloud storage file if we have a URL
+    if (targetUrl) {
+      try {
+        await removeFile(targetUrl);
+      } catch (storageErr) {
+        console.warn("[deleteMediaAction] Storage deletion warning:", storageErr);
+      }
+      // Delete from DB by URL
+      await db.delete(media).where(eq(media.url, targetUrl));
+    }
+
+    // 2. Delete by ID if positive
+    if (id && id > 0) {
+      await db.delete(media).where(eq(media.id, id));
+    }
 
     revalidateAllMediaConsumers();
     return { ok: true as const };
   } catch (err) {
+    console.error("[deleteMediaAction] Error:", err);
     return {
       ok: false as const,
       error: err instanceof Error ? err.message : "Could not delete media.",
+    };
+  }
+}
+
+export async function syncBlobMediaAction() {
+  try {
+    const result = await syncAllBlobMedia();
+    revalidateAllMediaConsumers();
+    return result;
+  } catch (err) {
+    console.error("[syncBlobMediaAction] Error:", err);
+    return {
+      ok: false,
+      count: 0,
+      error: err instanceof Error ? err.message : "Could not sync cloud storage files.",
     };
   }
 }

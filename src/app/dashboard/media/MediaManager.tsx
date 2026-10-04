@@ -33,6 +33,7 @@ import {
   replaceMediaAction,
   deleteMediaAction,
   updateMediaAction,
+  syncBlobMediaAction,
   saveButtonDownloadsAction,
   saveSiteImagesAction,
 } from "./actions";
@@ -104,6 +105,11 @@ export default function MediaManager({
   // Delete modal state
   const [deleteTarget, setDeleteTarget] = useState<MediaItem | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
+
+  // Cloud sync state
+  const [isSyncingBlobs, setIsSyncingBlobs] = useState(false);
+  const [syncFeedback, setSyncFeedback] = useState<{ ok: boolean; message: string } | null>(null);
 
   // Preview modal state
   const [previewItem, setPreviewItem] = useState<MediaItem | null>(null);
@@ -380,14 +386,50 @@ export default function MediaManager({
   async function confirmDelete() {
     if (!deleteTarget) return;
     setIsDeleting(true);
+    setDeleteError("");
     try {
-      const res = await deleteMediaAction(deleteTarget.id);
+      const res = await deleteMediaAction(deleteTarget.id, deleteTarget.url);
       if (res.ok) {
-        setItems((prev) => prev.filter((i) => i.id !== deleteTarget.id));
+        setItems((prev) =>
+          prev.filter((i) => i.id !== deleteTarget.id && i.url !== deleteTarget.url)
+        );
         setDeleteTarget(null);
+        router.refresh();
+      } else {
+        setDeleteError(res.error || "Could not delete this file. Please try again.");
       }
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : "Deletion failed.");
     } finally {
       setIsDeleting(false);
+    }
+  }
+
+  async function handleSyncBlobs() {
+    setIsSyncingBlobs(true);
+    setSyncFeedback(null);
+    try {
+      const res = await syncBlobMediaAction();
+      if (res.ok) {
+        setSyncFeedback({
+          ok: true,
+          message: `Synced ${res.count} cloud files into your media library!`,
+        });
+        router.refresh();
+      } else {
+        setSyncFeedback({
+          ok: false,
+          message: res.error || "Cloud sync could not be completed.",
+        });
+      }
+    } catch (err) {
+      setSyncFeedback({
+        ok: false,
+        message: err instanceof Error ? err.message : "Failed to sync cloud files.",
+      });
+    } finally {
+      setIsSyncingBlobs(false);
+      setTimeout(() => setSyncFeedback(null), 6000);
     }
   }
 
@@ -540,11 +582,42 @@ export default function MediaManager({
           <span className="font-mono text-[11px] bg-white/80 border border-ocean-200 px-2 py-0.5 rounded">store_At02gF7f3no98fex</span>
           <span className="hidden sm:inline text-stone">· Global Edge CDN delivery active</span>
         </div>
-        <div className="flex items-center gap-1.5 text-emerald-800 font-medium">
-          <span className="inline-block h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-          <span>Connected</span>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={handleSyncBlobs}
+            disabled={isSyncingBlobs}
+            className="btn btn-outline inline-flex items-center gap-1.5 text-xs py-1 px-3 bg-white"
+            title="Fetch and sync all files from Vercel Blob store into the library"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${isSyncingBlobs ? "animate-spin text-ocean-600" : ""}`} />
+            <span>{isSyncingBlobs ? "Syncing Store..." : "Sync Cloud Files"}</span>
+          </button>
+          <div className="flex items-center gap-1.5 text-emerald-800 font-medium">
+            <span className="inline-block h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span>Connected</span>
+          </div>
         </div>
       </div>
+
+      {syncFeedback && (
+        <div
+          className={`text-xs px-4 py-3 border flex items-center justify-between animate-fade-in ${
+            syncFeedback.ok
+              ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+              : "bg-red-50 border-red-200 text-red-800"
+          }`}
+        >
+          <span>{syncFeedback.message}</span>
+          <button
+            type="button"
+            onClick={() => setSyncFeedback(null)}
+            className="font-bold ml-3 text-stone/80 hover:text-navy-900"
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       {/* Main Tab Navigation */}
       <div className="flex border-b border-navy-900/10">
@@ -2103,7 +2176,10 @@ export default function MediaManager({
       {deleteTarget && (
         <Modal
           open={!!deleteTarget}
-          onClose={() => setDeleteTarget(null)}
+          onClose={() => {
+            setDeleteTarget(null);
+            setDeleteError("");
+          }}
           title="Remove Media Item"
         >
           <div className="space-y-4">
@@ -2112,12 +2188,22 @@ export default function MediaManager({
               <strong className="text-navy-900">{deleteTarget.originalName}</strong>?
             </p>
             <p className="text-xs text-stone/80">
-              The underlying file will be removed. If this file was attached to buttons or displayed in gallery sections, it will no longer load.
+              The underlying file will be removed from storage. If this file was attached to buttons or displayed in gallery sections, it will no longer load.
             </p>
+
+            {deleteError && (
+              <div className="bg-red-50 border border-red-200 text-red-800 text-xs p-3">
+                {deleteError}
+              </div>
+            )}
+
             <div className="flex justify-end gap-3 pt-4 border-t border-navy-900/10">
               <button
                 type="button"
-                onClick={() => setDeleteTarget(null)}
+                onClick={() => {
+                  setDeleteTarget(null);
+                  setDeleteError("");
+                }}
                 className="btn btn-outline"
               >
                 Cancel
