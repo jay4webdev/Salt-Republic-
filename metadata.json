@@ -1,0 +1,6 @@
+{
+  "name": "Salt Republic",
+  "description": "Private luxury yacht charter and bespoke ocean experiences in the Maldives aboard Finch 65.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

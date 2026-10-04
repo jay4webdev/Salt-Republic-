@@ -1,0 +1,396 @@
+@import "tailwindcss";
+
+@theme {
+  --font-display: "Jost", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Manrope", ui-sans-serif, system-ui, -apple-system, sans-serif;
+
+  --color-navy-950: #04121a;
+  --color-navy-900: #071b26;
+  --color-navy-800: #0b2735;
+  --color-navy-700: #103444;
+  --color-navy-600: #164356;
+  --color-ocean-500: #1f6075;
+  --color-teal-400: #5bb0bb;
+  --color-teal-300: #8fd0d6;
+  --color-sand-300: #e0d4bc;
+  --color-sand-400: #cbb795;
+  --color-sand-500: #b6a07c;
+  --color-ivory: #f6f3ec;
+  --color-cream: #fbfaf6;
+  --color-mist: #e9e4d8;
+  --color-ink: #0e212b;
+  --color-stone: #5d6d77;
+}
+
+/* ------------------------------- Base ---------------------------------- */
+
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 88px;
+}
+
+body {
+  background: var(--color-cream);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: var(--color-teal-400);
+  color: var(--color-navy-950);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-teal-400);
+  outline-offset: 3px;
+}
+
+/* ------------------------------ Typography ----------------------------- */
+
+.font-display {
+  font-family: var(--font-display);
+  font-weight: 300;
+  letter-spacing: -0.005em;
+}
+
+.eyebrow {
+  font-family: var(--font-display);
+  font-size: 0.6875rem;
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+  font-weight: 400;
+}
+
+.display-xl {
+  font-family: var(--font-display);
+  font-size: clamp(2.9rem, 7.4vw, 6.25rem);
+  line-height: 0.98;
+  letter-spacing: -0.022em;
+  font-weight: 300;
+}
+
+.display-lg {
+  font-family: var(--font-display);
+  font-size: clamp(2.3rem, 4.6vw, 4rem);
+  line-height: 1.02;
+  letter-spacing: -0.02em;
+  font-weight: 300;
+}
+
+.display-md {
+  font-family: var(--font-display);
+  font-size: clamp(1.85rem, 3vw, 2.6rem);
+  line-height: 1.06;
+  letter-spacing: -0.015em;
+  font-weight: 300;
+}
+
+/* Editorial numeric/label utilities */
+.display-numeral {
+  font-family: var(--font-display);
+  font-weight: 200;
+  letter-spacing: -0.03em;
+}
+
+.index-label {
+  font-family: var(--font-display);
+  font-size: 0.6875rem;
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+  font-weight: 400;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.9rem;
+}
+.index-label::before {
+  content: "";
+  width: 2.25rem;
+  height: 1px;
+  background: currentColor;
+  opacity: 0.5;
+}
+
+/* Masked line reveal (hero) */
+.line-mask {
+  display: block;
+  overflow: hidden;
+  padding-bottom: 0.1em;
+  margin-bottom: -0.1em;
+}
+.line-mask > span {
+  display: block;
+  transform: translateY(115%);
+  animation: line-rise 1.2s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  will-change: transform;
+}
+@keyframes line-rise {
+  to {
+    transform: translateY(0);
+  }
+}
+
+/* -------------------------------- Links/buttons ------------------------ */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  font-family: var(--font-display);
+  font-size: 0.78rem;
+  font-weight: 400;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  padding: 1.1rem 2.1rem;
+  border: 1px solid transparent;
+  transition: background-color 0.35s ease, color 0.35s ease,
+    border-color 0.35s ease, transform 0.35s ease;
+  cursor: pointer;
+  white-space: nowrap;
+  line-height: 1;
+}
+
+.btn:active {
+  transform: translateY(1px);
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.btn-light {
+  background: var(--color-ivory);
+  color: var(--color-navy-900);
+}
+.btn-light:hover {
+  background: var(--color-sand-300);
+}
+
+.btn-dark {
+  background: var(--color-navy-900);
+  color: var(--color-ivory);
+}
+.btn-dark:hover {
+  background: var(--color-navy-700);
+}
+
+.btn-outline-light {
+  border-color: rgba(246, 243, 236, 0.55);
+  color: var(--color-ivory);
+  background: transparent;
+}
+.btn-outline-light:hover {
+  border-color: var(--color-ivory);
+  background: rgba(246, 243, 236, 0.08);
+}
+
+.btn-outline-dark {
+  border-color: rgba(14, 33, 43, 0.4);
+  color: var(--color-navy-900);
+  background: transparent;
+}
+.btn-outline-dark:hover {
+  border-color: var(--color-navy-900);
+  background: var(--color-navy-900);
+  color: var(--color-ivory);
+}
+
+.link-underline {
+  position: relative;
+}
+.link-underline::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -4px;
+  height: 1px;
+  width: 100%;
+  background: currentColor;
+  transform: scaleX(0);
+  transform-origin: right;
+  transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.link-underline:hover::after {
+  transform: scaleX(1);
+  transform-origin: left;
+}
+
+/* -------------------------------- Forms -------------------------------- */
+
+.field-label {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 0.72rem;
+  font-weight: 400;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--color-navy-800);
+  margin-bottom: 0.6rem;
+}
+
+.field-input {
+  width: 100%;
+  background: #fff;
+  border: 1px solid var(--color-mist);
+  padding: 0.95rem 1.1rem;
+  font-size: 1rem;
+  color: var(--color-ink);
+  border-radius: 2px;
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+  font-family: var(--font-sans);
+}
+.field-input::placeholder {
+  color: #9aa6ad;
+}
+.field-input:focus {
+  outline: none;
+  border-color: var(--color-ocean-500);
+  box-shadow: 0 0 0 3px rgba(31, 96, 117, 0.12);
+}
+.field-input[aria-invalid="true"] {
+  border-color: #b4473a;
+  box-shadow: 0 0 0 3px rgba(180, 71, 58, 0.1);
+}
+
+.field-error {
+  margin-top: 0.45rem;
+  font-size: 0.8125rem;
+  color: #a23c30;
+}
+
+.field-hint {
+  margin-top: 0.45rem;
+  font-size: 0.8125rem;
+  color: var(--color-stone);
+}
+
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.9rem 1.1rem;
+  border: 1px solid var(--color-mist);
+  background: #fff;
+  border-radius: 2px;
+  cursor: pointer;
+  transition: border-color 0.25s ease, background 0.25s ease;
+}
+.checkbox-row:hover {
+  border-color: var(--color-ocean-500);
+}
+.checkbox-row:has(input:checked) {
+  border-color: var(--color-navy-800);
+  background: var(--color-ivory);
+}
+.checkbox-row input {
+  accent-color: var(--color-navy-800);
+  width: 1.05rem;
+  height: 1.05rem;
+}
+
+/* ------------------------------- Reveal -------------------------------- */
+
+.reveal {
+  opacity: 0;
+  transform: translateY(28px);
+  transition: opacity 0.9s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: opacity, transform;
+}
+.reveal.is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+@keyframes float-y {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(10px);
+  }
+}
+.animate-float-y {
+  animation: float-y 2.4s ease-in-out infinite;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.animate-fade-in {
+  animation: fade-in 0.5s ease both;
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.animate-scale-in {
+  animation: scale-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes ken-burns {
+  from {
+    transform: scale(1.08);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+.animate-ken-burns {
+  animation: ken-burns 2.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* ----------------------------- Misc details ---------------------------- */
+
+.text-balance {
+  text-wrap: balance;
+}
+
+.hairline {
+  height: 1px;
+  background: currentColor;
+  opacity: 0.15;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  .line-mask > span {
+    transform: none;
+    animation: none;
+  }
+  .animate-float-y,
+  .animate-ken-burns {
+    animation: none;
+  }
+}
