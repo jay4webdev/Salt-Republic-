@@ -189,7 +189,16 @@ export async function removeFile(rawUrl: string): Promise<boolean> {
     const blobToken = getBlobToken();
     if (blobToken) {
       try {
-        await del(cleanUrl, { token: blobToken });
+        const variants = Array.from(
+          new Set([
+            cleanUrl,
+            encodeURI(cleanUrl),
+            decodeURI(cleanUrl),
+            decodeURIComponent(cleanUrl),
+          ])
+        ).filter((u) => u.startsWith("https://"));
+
+        await del(variants, { token: blobToken });
         return true;
       } catch (err) {
         console.warn("[Storage] Failed to delete from Vercel Blob:", err);
@@ -201,37 +210,49 @@ export async function removeFile(rawUrl: string): Promise<boolean> {
   // 2. Local uploads deletion
   if (cleanUrl.startsWith("/uploads/")) {
     const filename = path.basename(cleanUrl);
-    const filePath = path.join(process.cwd(), "public", "uploads", filename);
-    try {
-      await unlink(filePath);
-      return true;
-    } catch {
-      return true; // Already removed
+    const decodedFilename = decodeURIComponent(filename);
+    const names = Array.from(new Set([filename, decodedFilename]));
+    for (const name of names) {
+      const filePath = path.join(process.cwd(), "public", "uploads", name);
+      try {
+        await unlink(filePath);
+      } catch {
+        // Already removed
+      }
     }
+    return true;
   }
 
   // 3. Local images deletion
   if (cleanUrl.startsWith("/images/")) {
     const filename = path.basename(cleanUrl);
-    const filePath = path.join(process.cwd(), "public", "images", filename);
-    try {
-      await unlink(filePath);
-      return true;
-    } catch {
-      return true; // Already removed
+    const decodedFilename = decodeURIComponent(filename);
+    const names = Array.from(new Set([filename, decodedFilename]));
+    for (const name of names) {
+      const filePath = path.join(process.cwd(), "public", "images", name);
+      try {
+        await unlink(filePath);
+      } catch {
+        // Already removed
+      }
     }
+    return true;
   }
 
   // 4. Local packages deletion
   if (cleanUrl.startsWith("/packages/")) {
     const filename = path.basename(cleanUrl);
-    const filePath = path.join(process.cwd(), "public", "packages", filename);
-    try {
-      await unlink(filePath);
-      return true;
-    } catch {
-      return true; // Already removed
+    const decodedFilename = decodeURIComponent(filename);
+    const names = Array.from(new Set([filename, decodedFilename]));
+    for (const name of names) {
+      const filePath = path.join(process.cwd(), "public", "packages", name);
+      try {
+        await unlink(filePath);
+      } catch {
+        // Already removed
+      }
     }
+    return true;
   }
 
   return true;

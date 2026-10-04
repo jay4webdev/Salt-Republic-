@@ -6,6 +6,7 @@ import {
   getBookingsGroupedByStatus,
   getDashboardStats,
   getRecentBookings,
+  getYacht,
 } from "@/lib/queries";
 import { getAllMedia } from "@/lib/media";
 import type { BookingStatus } from "@/db/schema";
@@ -21,12 +22,26 @@ const STATUS_ORDER: BookingStatus[] = [
 ];
 
 export default async function OverviewPage() {
-  const [stats, recent, grouped, mediaItems] = await Promise.all([
+  const [stats, recent, grouped, mediaItems, yacht] = await Promise.all([
     getDashboardStats(),
     getRecentBookings(7),
     getBookingsGroupedByStatus(),
     getAllMedia(),
+    getYacht("finch-65"),
   ]);
+
+  const yachtGallery = Array.isArray(yacht?.gallery)
+    ? yacht.gallery
+    : typeof yacht?.gallery === "string"
+      ? (() => {
+          try {
+            const p = JSON.parse(yacht.gallery);
+            return Array.isArray(p) ? p : [];
+          } catch {
+            return [];
+          }
+        })()
+      : [];
 
   const pdfCount = mediaItems.filter(
     (m) => m.category === "pdf" || m.url.endsWith(".pdf")
@@ -132,15 +147,33 @@ export default async function OverviewPage() {
           </div>
         </div>
 
-        <div className="mt-5 grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+        <div className="mt-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
           <Link
             href="/dashboard/media"
             className="group flex flex-col justify-between border border-navy-900/10 bg-stone/5 p-4 hover:border-navy-900 hover:bg-stone/10 transition-colors"
           >
             <div>
               <div className="flex items-center gap-2 text-navy-900 font-semibold mb-1">
-                <ImageIcon className="h-4 w-4 text-ocean-600" />
-                <span className="uppercase tracking-wider">Change Site Images</span>
+                <ImageIcon className="h-4 w-4 text-teal-600" />
+                <span className="uppercase tracking-wider">Site Gallery ({yachtGallery.length})</span>
+              </div>
+              <p className="text-stone leading-relaxed">
+                Showcase photos of Finch 65 in Section 04 · The Vessel on the live website. Reorder or set hero photos.
+              </p>
+            </div>
+            <span className="mt-3 inline-flex items-center gap-1 font-semibold text-teal-700 group-hover:text-navy-900">
+              Manage Site Gallery <ArrowRight className="h-3 w-3" />
+            </span>
+          </Link>
+
+          <Link
+            href="/dashboard/media"
+            className="group flex flex-col justify-between border border-navy-900/10 bg-stone/5 p-4 hover:border-navy-900 hover:bg-stone/10 transition-colors"
+          >
+            <div>
+              <div className="flex items-center gap-2 text-navy-900 font-semibold mb-1">
+                <Sliders className="h-4 w-4 text-ocean-600" />
+                <span className="uppercase tracking-wider">Website Visual Images</span>
               </div>
               <p className="text-stone leading-relaxed">
                 Update the homepage hero background, food & dining visual, menu popup, and booking banners.

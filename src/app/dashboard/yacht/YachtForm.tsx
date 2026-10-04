@@ -1,11 +1,12 @@
 "use client";
 
 import Image from "next/image";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Plus, Trash2, Upload, ImageIcon, Check } from "lucide-react";
 import type { yachts } from "@/db/schema";
 import type { MediaItem } from "@/lib/media";
-import { saveYacht, type GalleryImage } from "./actions";
+import { saveYacht, saveYachtGalleryOnly, type GalleryImage } from "./actions";
 import { PageHeader, Spinner, Modal } from "@/components/dashboard/ui";
 import { uploadMediaAction } from "../media/actions";
 
@@ -18,6 +19,7 @@ export default function YachtForm({
   yacht: Yacht;
   availableMedia: MediaItem[];
 }) {
+  const router = useRouter();
   const [form, setForm] = useState({
     summary: yacht.summary,
     maxSpeedKnots: yacht.maxSpeedKnots,
@@ -31,14 +33,47 @@ export default function YachtForm({
     crew: yacht.crew,
   });
 
+  const parsedInitialGallery: GalleryImage[] = Array.isArray(yacht.gallery)
+    ? yacht.gallery
+    : typeof yacht.gallery === "string"
+      ? (() => {
+          try {
+            const p = JSON.parse(yacht.gallery);
+            return Array.isArray(p) ? p : [];
+          } catch {
+            return [];
+          }
+        })()
+      : [];
+
   const [heroImage, setHeroImage] = useState<string>(yacht.heroImage || "/images/hero.jpg");
-  const [gallery, setGallery] = useState<GalleryImage[]>(
-    Array.isArray(yacht.gallery) ? (yacht.gallery as GalleryImage[]) : []
-  );
+  const [gallery, setGallery] = useState<GalleryImage[]>(parsedInitialGallery);
+
+  // Sync state if server prop updates
+  useEffect(() => {
+    const freshGallery: GalleryImage[] = Array.isArray(yacht.gallery)
+      ? yacht.gallery
+      : typeof yacht.gallery === "string"
+        ? (() => {
+            try {
+              const p = JSON.parse(yacht.gallery);
+              return Array.isArray(p) ? p : [];
+            } catch {
+              return [];
+            }
+          })()
+        : [];
+    setGallery(freshGallery);
+    if (yacht.heroImage) setHeroImage(yacht.heroImage);
+  }, [yacht.gallery, yacht.heroImage]);
 
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
+
+  const [gallerySaving, setGallerySaving] = useState(false);
+  const [gallerySaved, setGallerySaved] = useState(false);
+  const [galleryError, setGalleryError] = useState("");
 
   // Add image modal
   const [showAddModal, setShowAddModal] = useState(false);
@@ -58,26 +93,70 @@ export default function YachtForm({
       setForm({ ...form, [key]: Number(e.target.value) }),
   });
 
-  function removeGalleryImage(index: number) {
-    setGallery((prev) => prev.filter((_, i) => i !== index));
+  async function removeGalleryImage(index: number) {
+    const updated = gallery.filter((_, i) => i !== index);
+    setGallery(updated);
+    setGallerySaving(true);
+    const res = await saveYachtGalleryOnly(updated);
+    setGallerySaving(false);
+    if (res.ok) {
+      setGallerySaved(true);
+      setTimeout(() => setGallerySaved(false), 3000);
+      router.refresh();
+    }
   }
 
-  function updateGalleryLabel(index: number, newLabel: string) {
-    setGallery((prev) =>
-      prev.map((item, i) => (i === index ? { ...item, label: newLabel } : item))
+  async function updateGalleryLabel(index: number, newLabel: string) {
+    const updated = gallery.map((item, i) =>
+      i === index ? { ...item, label: newLabel } : item
     );
+    setGallery(updated);
+  }
+
+  async function handleSaveGalleryManually() {
+    setGallerySaving(true);
+    setGallerySaved(false);
+    setGalleryError("");
+    const res = await saveYachtGalleryOnly(gallery);
+    setGallerySaving(false);
+    if (res.ok) {
+      setGallerySaved(true);
+      setTimeout(() => setGallerySaved(false), 3000);
+      router.refresh();
+    } else {
+      setGalleryError(res.error || "Failed to save gallery.");
+    }
   }
 
   // Handle select from existing library
-  function handleSelectFromLibrary(mediaItem: MediaItem) {
+  async function handleSelectFromLibrary(mediaItem: MediaItem) {
     if (targetMode === "hero") {
       setHeroImage(mediaItem.url);
       setShowAddModal(false);
+      setSaving(true);
+      await saveYacht({
+        id: yacht.id,
+        ...form,
+        heroImage: mediaItem.url,
+        gallery,
+      });
+      setSaving(false);
+      router.refresh();
     } else {
       const label = newImageLabel.trim() || mediaItem.originalName || "Finch 65";
-      setGallery((prev) => [...prev, { src: mediaItem.url, label }]);
+      const updated = [...gallery, { src: mediaItem.url, label }];
+      setGallery(updated);
       setNewImageLabel("");
       setShowAddModal(false);
+      // Immediately persist to DB
+      setGallerySaving(true);
+      const res = await saveYachtGalleryOnly(updated);
+      setGallerySaving(false);
+      if (res.ok) {
+        setGallerySaved(true);
+        setTimeout(() => setGallerySaved(false), 3000);
+      }
+      router.refresh();
     }
   }
 
@@ -122,13 +201,31 @@ export default function YachtForm({
 
       if (targetMode === "hero") {
         setHeroImage(uploadedUrl);
+        setSaving(true);
+        await saveYacht({
+          id: yacht.id,
+          ...form,
+          heroImage: uploadedUrl,
+          gallery,
+        });
+        setSaving(false);
       } else {
         const label = newImageLabel.trim() || "Finch 65 Feature";
-        setGallery((prev) => [...prev, { src: uploadedUrl, label }]);
+        const updated = [...gallery, { src: uploadedUrl, label }];
+        setGallery(updated);
+        // Persist immediately!
+        setGallerySaving(true);
+        const res = await saveYachtGalleryOnly(updated);
+        setGallerySaving(false);
+        if (res.ok) {
+          setGallerySaved(true);
+          setTimeout(() => setGallerySaved(false), 3000);
+        }
       }
       setShowAddModal(false);
       setSelectedFile(null);
       setNewImageLabel("");
+      router.refresh();
     } catch (err) {
       setUploadError(err instanceof Error ? err.message : "Upload error.");
     } finally {

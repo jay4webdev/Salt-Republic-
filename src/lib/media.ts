@@ -88,7 +88,13 @@ async function syncBlobItemsIntoDatabase(existingUrls: Set<string>): Promise<Med
     if (!blobs || blobs.length === 0) return [];
 
     for (const b of blobs) {
-      if (existingUrls.has(b.url)) continue;
+      if (
+        existingUrls.has(b.url) ||
+        existingUrls.has(decodeURI(b.url)) ||
+        existingUrls.has(encodeURI(b.url))
+      ) {
+        continue;
+      }
 
       const pathname = b.pathname || "";
       const rawFilename = pathname.split("/").pop() || "uploaded-file";
@@ -117,7 +123,7 @@ async function syncBlobItemsIntoDatabase(existingUrls: Set<string>): Promise<Med
             filename,
             originalName,
             mimeType,
-            sizeBytes: b.size || 0,
+            sizeBytes: Math.min(b.size || 0, 2147483647),
             category,
             altText: originalName,
             createdAt: b.uploadedAt ? new Date(b.uploadedAt) : new Date(),
@@ -126,7 +132,7 @@ async function syncBlobItemsIntoDatabase(existingUrls: Set<string>): Promise<Med
             target: media.url,
             set: {
               originalName,
-              sizeBytes: b.size || 0,
+              sizeBytes: Math.min(b.size || 0, 2147483647),
               category,
             },
           })
@@ -135,6 +141,8 @@ async function syncBlobItemsIntoDatabase(existingUrls: Set<string>): Promise<Med
         if (inserted) {
           newlyAdded.push(inserted);
           existingUrls.add(b.url);
+          existingUrls.add(decodeURI(b.url));
+          existingUrls.add(encodeURI(b.url));
         }
       } catch {
         // Fallback transient item if DB insert fails
@@ -144,7 +152,7 @@ async function syncBlobItemsIntoDatabase(existingUrls: Set<string>): Promise<Med
           filename,
           originalName,
           mimeType,
-          sizeBytes: b.size || 0,
+          sizeBytes: Math.min(b.size || 0, 2147483647),
           category,
           altText: originalName,
           createdAt: b.uploadedAt ? new Date(b.uploadedAt) : new Date(),
@@ -199,7 +207,7 @@ export async function syncAllBlobMedia(): Promise<{ ok: boolean; count: number; 
           filename,
           originalName,
           mimeType,
-          sizeBytes: b.size || 0,
+          sizeBytes: Math.min(b.size || 0, 2147483647),
           category,
           altText: originalName,
           createdAt: b.uploadedAt ? new Date(b.uploadedAt) : new Date(),
@@ -208,7 +216,7 @@ export async function syncAllBlobMedia(): Promise<{ ok: boolean; count: number; 
           target: media.url,
           set: {
             originalName,
-            sizeBytes: b.size || 0,
+            sizeBytes: Math.min(b.size || 0, 2147483647),
             category,
           },
         });

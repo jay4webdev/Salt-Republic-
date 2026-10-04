@@ -1,10 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq } from "drizzle-orm";
+import { eq, or } from "drizzle-orm";
 import path from "path";
 import { db } from "@/db";
-import { media, type MediaCategory } from "@/db/schema";
+import { media, yachts, type MediaCategory } from "@/db/schema";
 import { storeFile, removeFile } from "@/lib/storage";
 import {
   saveButtonDownloadsConfig,
@@ -15,6 +15,7 @@ import {
   type SiteImagesConfig,
 } from "@/lib/site-images";
 import { syncAllBlobMedia } from "@/lib/media";
+import { getYacht } from "@/lib/queries";
 
 function revalidateAllMediaConsumers() {
   revalidatePath("/dashboard/media");
@@ -23,6 +24,8 @@ function revalidateAllMediaConsumers() {
   revalidatePath("/dashboard/activities");
   revalidatePath("/dashboard/settings");
   revalidatePath("/");
+  revalidatePath("/", "layout");
+  revalidatePath("/(marketing)", "layout");
   revalidatePath("/travel-agents");
   revalidatePath("/book");
   revalidatePath("/thank-you");
@@ -200,27 +203,87 @@ export async function deleteMediaAction(id: number, urlParam?: string) {
   try {
     let targetUrl = (urlParam || "").trim();
 
+    // 1. Locate existing DB row if present
+    let existingItem = null;
     if (id && id > 0) {
       const rows = await db.select().from(media).where(eq(media.id, id)).limit(1);
-      if (rows[0]) {
-        targetUrl = targetUrl || rows[0].url;
-      }
+      if (rows[0]) existingItem = rows[0];
+    }
+    if (!existingItem && targetUrl) {
+      const rows = await db
+        .select()
+        .from(media)
+        .where(
+          or(
+            eq(media.url, targetUrl),
+            eq(media.url, encodeURI(targetUrl)),
+            eq(media.url, decodeURI(targetUrl)),
+            eq(media.url, decodeURIComponent(targetUrl))
+          )
+        )
+        .limit(1);
+      if (rows[0]) existingItem = rows[0];
     }
 
-    // 1. Remove the physical or cloud storage file if we have a URL
+    if (existingItem) {
+      targetUrl = targetUrl || existingItem.url;
+    }
+
+    // 2. Remove the physical or cloud storage file if we have a URL
     if (targetUrl) {
       try {
         await removeFile(targetUrl);
       } catch (storageErr) {
         console.warn("[deleteMediaAction] Storage deletion warning:", storageErr);
       }
-      // Delete from DB by URL
-      await db.delete(media).where(eq(media.url, targetUrl));
+
+      // Delete from DB by all URL variants to guarantee match
+      const urlVariants = Array.from(
+        new Set([
+          targetUrl,
+          encodeURI(targetUrl),
+          decodeURI(targetUrl),
+          decodeURIComponent(targetUrl),
+        ])
+      ).filter(Boolean);
+
+      for (const u of urlVariants) {
+        await db.delete(media).where(eq(media.url, u)).catch(() => {});
+      }
     }
 
-    // 2. Delete by ID if positive
+    // 3. Delete by ID if positive
     if (id && id > 0) {
-      await db.delete(media).where(eq(media.id, id));
+      await db.delete(media).where(eq(media.id, id)).catch(() => {});
+    }
+    if (existingItem?.id) {
+      await db.delete(media).where(eq(media.id, existingItem.id)).catch(() => {});
+    }
+
+    // 4. If this file was displayed in the Finch 65 gallery, remove it cleanly so no broken image remains
+    if (targetUrl) {
+      try {
+        const yacht = await getYacht("finch-65");
+        if (yacht && Array.isArray(yacht.gallery)) {
+          const normTarget = targetUrl.split("?")[0];
+          const updatedGallery = yacht.gallery.filter((g: { src?: string; label?: string }) => {
+            const gNorm = (g.src || "").split("?")[0];
+            return (
+              gNorm !== normTarget &&
+              encodeURI(gNorm) !== encodeURI(normTarget) &&
+              decodeURI(gNorm) !== decodeURI(normTarget)
+            );
+          });
+          if (updatedGallery.length !== yacht.gallery.length) {
+            await db
+              .update(yachts)
+              .set({ gallery: updatedGallery })
+              .where(or(eq(yachts.id, yacht.id), eq(yachts.slug, "finch-65")));
+          }
+        }
+      } catch (gErr) {
+        console.warn("[deleteMediaAction] Gallery sync notice:", gErr);
+      }
     }
 
     revalidateAllMediaConsumers();
@@ -291,6 +354,85 @@ export async function saveSiteImagesAction(config: Partial<SiteImagesConfig>) {
     return {
       ok: false as const,
       error: err instanceof Error ? err.message : "Could not save site images.",
+    };
+  }
+}
+
+export async function saveSiteGalleryAction(gallery: { src: string; label: string }[]) {
+  try {
+    const existing = await getYacht("finch-65");
+    if (!existing) {
+      return { ok: false as const, error: "Yacht not found." };
+    }
+
+    await db
+      .update(yachts)
+      .set({ gallery })
+      .where(or(eq(yachts.id, existing.id), eq(yachts.slug, "finch-65")));
+
+    revalidateAllMediaConsumers();
+    return { ok: true as const, gallery };
+  } catch (err) {
+    return {
+      ok: false as const,
+      error: err instanceof Error ? err.message : "Failed to update site gallery.",
+    };
+  }
+}
+
+export async function addImageToSiteGalleryAction(image: { src: string; label: string }) {
+  try {
+    const existing = await getYacht("finch-65");
+    if (!existing) {
+      return { ok: false as const, error: "Yacht not found." };
+    }
+
+    const currentGallery: { src: string; label: string }[] = Array.isArray(existing.gallery)
+      ? existing.gallery
+      : [];
+
+    const filtered = currentGallery.filter((g) => g.src !== image.src);
+    const updated = [...filtered, image];
+
+    await db
+      .update(yachts)
+      .set({ gallery: updated })
+      .where(or(eq(yachts.id, existing.id), eq(yachts.slug, "finch-65")));
+
+    revalidateAllMediaConsumers();
+    return { ok: true as const, gallery: updated };
+  } catch (err) {
+    return {
+      ok: false as const,
+      error: err instanceof Error ? err.message : "Failed to add to gallery.",
+    };
+  }
+}
+
+export async function removeImageFromSiteGalleryAction(src: string) {
+  try {
+    const existing = await getYacht("finch-65");
+    if (!existing) {
+      return { ok: false as const, error: "Yacht not found." };
+    }
+
+    const currentGallery: { src: string; label: string }[] = Array.isArray(existing.gallery)
+      ? existing.gallery
+      : [];
+
+    const updated = currentGallery.filter((g) => g.src !== src);
+
+    await db
+      .update(yachts)
+      .set({ gallery: updated })
+      .where(or(eq(yachts.id, existing.id), eq(yachts.slug, "finch-65")));
+
+    revalidateAllMediaConsumers();
+    return { ok: true as const, gallery: updated };
+  } catch (err) {
+    return {
+      ok: false as const,
+      error: err instanceof Error ? err.message : "Failed to remove from gallery.",
     };
   }
 }

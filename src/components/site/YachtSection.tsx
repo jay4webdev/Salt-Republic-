@@ -25,13 +25,24 @@ export default function YachtSection({
     { label: "Crew", value: String(yacht.crew), unit: "", sub: "Dedicated to your charter" },
   ];
 
-  const galleryList = Array.isArray(yacht.gallery) && yacht.gallery.length > 0
+  const parsedGallery = Array.isArray(yacht.gallery)
     ? yacht.gallery
-    : [
-        { label: "Exterior", src: yacht.heroImage || "/images/hero.jpg" },
-        { label: "Interior Saloon", src: "/images/yacht-exterior.jpg" },
-        { label: "Accommodation", src: "/images/yacht-cabin.jpg" },
-      ];
+    : typeof yacht.gallery === "string"
+      ? (() => {
+          try {
+            const p = JSON.parse(yacht.gallery);
+            return Array.isArray(p) ? p : [];
+          } catch {
+            return [];
+          }
+        })()
+      : [];
+
+  const galleryList = parsedGallery.length > 0
+    ? parsedGallery
+    : yacht.heroImage
+      ? [{ label: "Finch 65", src: yacht.heroImage }]
+      : [];
 
   const firstMain = galleryList[0];
   const sideImages = galleryList.slice(1, 3);

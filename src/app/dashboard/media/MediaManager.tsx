@@ -24,6 +24,10 @@ import {
   AlertCircle,
   FolderOpen,
   Cloud,
+  ArrowUp,
+  ArrowDown,
+  LayoutGrid,
+  Star,
 } from "lucide-react";
 import type { MediaItem } from "@/lib/media";
 import type { ButtonDownloadsConfig } from "@/lib/button-downloads";
@@ -36,6 +40,9 @@ import {
   syncBlobMediaAction,
   saveButtonDownloadsAction,
   saveSiteImagesAction,
+  saveSiteGalleryAction,
+  addImageToSiteGalleryAction,
+  removeImageFromSiteGalleryAction,
 } from "./actions";
 import { PageHeader, Spinner, Modal } from "@/components/dashboard/ui";
 
@@ -51,10 +58,12 @@ export default function MediaManager({
   media: initialMedia,
   buttonDownloads: initialConfig,
   siteImages: initialSiteImages,
+  initialYachtGallery = [],
 }: {
   media: MediaItem[];
   buttonDownloads: ButtonDownloadsConfig;
   siteImages: SiteImagesConfig;
+  initialYachtGallery?: { src: string; label: string }[];
 }) {
   const router = useRouter();
   const [prevInitialMedia, setPrevInitialMedia] = useState<MediaItem[]>(initialMedia);
@@ -62,12 +71,25 @@ export default function MediaManager({
   const [buttonConfig, setButtonConfig] = useState<ButtonDownloadsConfig>(initialConfig);
   const [siteImages, setSiteImages] = useState<SiteImagesConfig>(initialSiteImages);
 
+  const [prevInitialGallery, setPrevInitialGallery] = useState<{ src: string; label: string }[]>(initialYachtGallery);
+  const [yachtGallery, setYachtGallery] = useState<{ src: string; label: string }[]>(initialYachtGallery);
+
   if (initialMedia !== prevInitialMedia) {
     setPrevInitialMedia(initialMedia);
     setItems(initialMedia);
   }
 
-  const [activeTab, setActiveTab] = useState<"library" | "site-images" | "buttons">("library");
+  if (initialYachtGallery !== prevInitialGallery) {
+    setPrevInitialGallery(initialYachtGallery);
+    setYachtGallery(initialYachtGallery);
+  }
+
+  const [activeTab, setActiveTab] = useState<"library" | "gallery" | "site-images" | "buttons">("library");
+  const [gallerySaving, setGallerySaving] = useState(false);
+  const [gallerySaved, setGallerySaved] = useState(false);
+  const [galleryError, setGalleryError] = useState("");
+  const [galleryFeedback, setGalleryFeedback] = useState<{ ok: boolean; message: string } | null>(null);
+  const [showGalleryPickerModal, setShowGalleryPickerModal] = useState(false);
   const [filter, setFilter] = useState<"all" | "image" | "pdf">("all");
   const [search, setSearch] = useState("");
 
@@ -391,7 +413,20 @@ export default function MediaManager({
       const res = await deleteMediaAction(deleteTarget.id, deleteTarget.url);
       if (res.ok) {
         setItems((prev) =>
-          prev.filter((i) => i.id !== deleteTarget.id && i.url !== deleteTarget.url)
+          prev.filter(
+            (i) =>
+              i.id !== deleteTarget.id &&
+              i.url !== deleteTarget.url &&
+              decodeURI(i.url) !== decodeURI(deleteTarget.url)
+          )
+        );
+        // Also remove from yachtGallery if it was displayed there
+        setYachtGallery((prev) =>
+          prev.filter(
+            (g) =>
+              g.src !== deleteTarget.url &&
+              decodeURI(g.src) !== decodeURI(deleteTarget.url)
+          )
         );
         setDeleteTarget(null);
         router.refresh();
@@ -402,6 +437,140 @@ export default function MediaManager({
       setDeleteError(err instanceof Error ? err.message : "Deletion failed.");
     } finally {
       setIsDeleting(false);
+    }
+  }
+
+  async function handleToggleGallery(item: MediaItem) {
+    const normUrl = item.url.split("?")[0];
+    const inGallery = yachtGallery.some((g) => {
+      const gNorm = (g.src || "").split("?")[0];
+      return (
+        gNorm === normUrl ||
+        decodeURI(gNorm) === decodeURI(normUrl) ||
+        encodeURI(gNorm) === encodeURI(normUrl)
+      );
+    });
+
+    if (inGallery) {
+      const updated = yachtGallery.filter((g) => {
+        const gNorm = (g.src || "").split("?")[0];
+        return (
+          gNorm !== normUrl &&
+          decodeURI(gNorm) !== decodeURI(normUrl) &&
+          encodeURI(gNorm) !== encodeURI(normUrl)
+        );
+      });
+      setYachtGallery(updated);
+      setGalleryFeedback({
+        ok: true,
+        message: `Removed "${item.originalName}" from Site Gallery.`,
+      });
+      await removeImageFromSiteGalleryAction(item.url);
+      router.refresh();
+    } else {
+      const newEntry = {
+        src: item.url,
+        label: item.originalName || "Finch 65 Feature",
+      };
+      const updated = [...yachtGallery, newEntry];
+      setYachtGallery(updated);
+      setGalleryFeedback({
+        ok: true,
+        message: `Added "${item.originalName}" to Site Gallery!`,
+      });
+      await addImageToSiteGalleryAction(newEntry);
+      router.refresh();
+    }
+    setTimeout(() => setGalleryFeedback(null), 4000);
+  }
+
+  async function handleMoveGallery(index: number, direction: "up" | "down") {
+    if (direction === "up" && index === 0) return;
+    if (direction === "down" && index === yachtGallery.length - 1) return;
+
+    const targetIndex = direction === "up" ? index - 1 : index + 1;
+    const updated = [...yachtGallery];
+    const temp = updated[index];
+    updated[index] = updated[targetIndex];
+    updated[targetIndex] = temp;
+
+    setYachtGallery(updated);
+    setGallerySaving(true);
+    const res = await saveSiteGalleryAction(updated);
+    setGallerySaving(false);
+    if (res.ok) {
+      setGallerySaved(true);
+      setTimeout(() => setGallerySaved(false), 3000);
+      router.refresh();
+    } else {
+      setGalleryError(res.error || "Failed to update gallery order.");
+    }
+  }
+
+  async function handleRemoveFromGallery(src: string) {
+    const normSrc = src.split("?")[0];
+    const updated = yachtGallery.filter((g) => {
+      const gNorm = (g.src || "").split("?")[0];
+      return (
+        gNorm !== normSrc &&
+        decodeURI(gNorm) !== decodeURI(normSrc) &&
+        encodeURI(gNorm) !== encodeURI(normSrc)
+      );
+    });
+
+    setYachtGallery(updated);
+    setGallerySaving(true);
+    const res = await saveSiteGalleryAction(updated);
+    setGallerySaving(false);
+    if (res.ok) {
+      setGallerySaved(true);
+      setTimeout(() => setGallerySaved(false), 3000);
+      router.refresh();
+    } else {
+      setGalleryError(res.error || "Failed to remove image from gallery.");
+    }
+  }
+
+  function handleUpdateGalleryCaption(index: number, newLabel: string) {
+    const updated = yachtGallery.map((item, i) =>
+      i === index ? { ...item, label: newLabel } : item
+    );
+    setYachtGallery(updated);
+  }
+
+  async function handleSaveGallery() {
+    setGallerySaving(true);
+    setGallerySaved(false);
+    setGalleryError("");
+
+    const res = await saveSiteGalleryAction(yachtGallery);
+    setGallerySaving(false);
+    if (res.ok) {
+      setGallerySaved(true);
+      setTimeout(() => setGallerySaved(false), 3000);
+      router.refresh();
+    } else {
+      setGalleryError(res.error || "Failed to save site gallery.");
+    }
+  }
+
+  async function handleSelectForGallery(item: MediaItem) {
+    const newEntry = {
+      src: item.url,
+      label: item.originalName || "Finch 65 Feature",
+    };
+    const updated = [...yachtGallery, newEntry];
+    setYachtGallery(updated);
+    setShowGalleryPickerModal(false);
+    setGallerySaving(true);
+    const res = await saveSiteGalleryAction(updated);
+    setGallerySaving(false);
+    if (res.ok) {
+      setGallerySaved(true);
+      setTimeout(() => setGallerySaved(false), 3000);
+      router.refresh();
+    } else {
+      setGalleryError(res.error || "Failed to add image to gallery.");
     }
   }
 
@@ -620,11 +789,11 @@ export default function MediaManager({
       )}
 
       {/* Main Tab Navigation */}
-      <div className="flex border-b border-navy-900/10">
+      <div className="flex border-b border-navy-900/10 overflow-x-auto">
         <button
           type="button"
           onClick={() => setActiveTab("library")}
-          className={`flex items-center gap-2 border-b-2 px-6 py-3 font-display text-sm uppercase tracking-[0.16em] transition-colors ${
+          className={`flex items-center gap-2 border-b-2 px-6 py-3 font-display text-sm uppercase tracking-[0.16em] transition-colors whitespace-nowrap ${
             activeTab === "library"
               ? "border-navy-900 text-navy-900 font-semibold"
               : "border-transparent text-stone hover:text-navy-900"
@@ -635,20 +804,32 @@ export default function MediaManager({
         </button>
         <button
           type="button"
+          onClick={() => setActiveTab("gallery")}
+          className={`flex items-center gap-2 border-b-2 px-6 py-3 font-display text-sm uppercase tracking-[0.16em] transition-colors whitespace-nowrap ${
+            activeTab === "gallery"
+              ? "border-navy-900 text-navy-900 font-semibold"
+              : "border-transparent text-stone hover:text-navy-900"
+          }`}
+        >
+          <LayoutGrid className="h-4 w-4 text-teal-600" />
+          <span>Site Gallery ({yachtGallery.length})</span>
+        </button>
+        <button
+          type="button"
           onClick={() => setActiveTab("site-images")}
-          className={`flex items-center gap-2 border-b-2 px-6 py-3 font-display text-sm uppercase tracking-[0.16em] transition-colors ${
+          className={`flex items-center gap-2 border-b-2 px-6 py-3 font-display text-sm uppercase tracking-[0.16em] transition-colors whitespace-nowrap ${
             activeTab === "site-images"
               ? "border-navy-900 text-navy-900 font-semibold"
               : "border-transparent text-stone hover:text-navy-900"
           }`}
         >
           <Sliders className="h-4 w-4" />
-          <span>Change Site Images</span>
+          <span>Website Visual Images</span>
         </button>
         <button
           type="button"
           onClick={() => setActiveTab("buttons")}
-          className={`flex items-center gap-2 border-b-2 px-6 py-3 font-display text-sm uppercase tracking-[0.16em] transition-colors ${
+          className={`flex items-center gap-2 border-b-2 px-6 py-3 font-display text-sm uppercase tracking-[0.16em] transition-colors whitespace-nowrap ${
             activeTab === "buttons"
               ? "border-navy-900 text-navy-900 font-semibold"
               : "border-transparent text-stone hover:text-navy-900"
@@ -658,6 +839,28 @@ export default function MediaManager({
           <span>Downloadable PDF Buttons</span>
         </button>
       </div>
+
+      {galleryFeedback && (
+        <div
+          className={`text-xs px-4 py-3 border flex items-center justify-between animate-fade-in ${
+            galleryFeedback.ok
+              ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+              : "bg-red-50 border-red-200 text-red-800"
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="h-4 w-4 text-emerald-600 flex-none" />
+            <span>{galleryFeedback.message}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setGalleryFeedback(null)}
+            className="font-bold ml-3 text-stone/80 hover:text-navy-900"
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       {/* ========================================================================= */}
       {/* TAB 1: Media Library */}
@@ -875,12 +1078,294 @@ export default function MediaManager({
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
                       </div>
+
+                      {/* Site Gallery Quick Button for Images */}
+                      {!isPdf && (
+                        <div className="mt-2.5 pt-2 border-t border-navy-900/10">
+                          {(() => {
+                            const normUrl = item.url.split("?")[0];
+                            const isInGallery = yachtGallery.some((g) => {
+                              const gNorm = (g.src || "").split("?")[0];
+                              return (
+                                gNorm === normUrl ||
+                                decodeURI(gNorm) === decodeURI(normUrl) ||
+                                encodeURI(gNorm) === encodeURI(normUrl)
+                              );
+                            });
+                            if (isInGallery) {
+                              return (
+                                <div className="flex items-center justify-between gap-1 text-[10px] bg-emerald-50 px-2 py-1 border border-emerald-200 text-emerald-900">
+                                  <span className="inline-flex items-center gap-1 font-semibold">
+                                    <Check className="h-3 w-3 text-emerald-600 flex-none" />
+                                    <span>In Site Gallery</span>
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleToggleGallery(item)}
+                                    className="text-stone hover:text-red-700 underline text-[10px]"
+                                    title="Remove from Site Gallery"
+                                  >
+                                    Remove
+                                  </button>
+                                </div>
+                              );
+                            }
+                            return (
+                              <button
+                                type="button"
+                                onClick={() => handleToggleGallery(item)}
+                                className="w-full text-center text-[10px] py-1 px-2 border border-navy-900/15 bg-stone/5 hover:bg-navy-900 hover:text-white transition-colors flex items-center justify-center gap-1 font-medium"
+                              >
+                                <Plus className="h-3 w-3 text-teal-600" />
+                                <span>Set to Site Gallery</span>
+                              </button>
+                            );
+                          })()}
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
               })}
             </div>
           )}
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* TAB 2: Site Gallery (Finch 65 Vessel Showcase) */}
+      {/* ========================================================================= */}
+      {activeTab === "gallery" && (
+        <div className="space-y-6">
+          <div className="bg-white p-6 border border-navy-900/10">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-4 mb-6 border-b border-navy-900/10 gap-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-display text-sm font-semibold uppercase tracking-[0.16em] text-navy-900">
+                    Finch 65 Vessel Gallery
+                  </h3>
+                  <span className="bg-ocean-100 text-ocean-900 text-[10px] font-bold px-2 py-0.5 uppercase tracking-wider">
+                    {yachtGallery.length} {yachtGallery.length === 1 ? "Photo" : "Photos"}
+                  </span>
+                </div>
+                <p className="text-xs text-stone mt-1 max-w-2xl leading-relaxed">
+                  These photos appear prominently on the live homepage under <strong>Section 04 · The Vessel</strong>. Photo #1 serves as the primary vessel visual. You can reorder photos, customize caption labels, or attach new images from your media library.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setShowGalleryPickerModal(true)}
+                  className="btn btn-outline text-xs py-1.5 px-3 inline-flex items-center gap-1.5"
+                >
+                  <Plus className="h-3.5 w-3.5 text-teal-600" />
+                  <span>Add from Library</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowUploadModal(true)}
+                  className="btn btn-outline text-xs py-1.5 px-3 inline-flex items-center gap-1.5"
+                >
+                  <Upload className="h-3.5 w-3.5 text-ocean-600" />
+                  <span>Upload New</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveGallery}
+                  disabled={gallerySaving}
+                  className="btn btn-dark text-xs py-1.5 px-3.5 inline-flex items-center gap-2"
+                >
+                  {gallerySaving ? <Spinner className="text-ivory" /> : null}
+                  <span>Save Gallery Changes</span>
+                </button>
+              </div>
+            </div>
+
+            {gallerySaved && (
+              <div className="mb-6 flex items-center gap-2 border border-emerald-300 bg-emerald-50 p-3 text-xs text-emerald-800 animate-fade-in">
+                <CheckCircle2 className="h-4 w-4 flex-none text-emerald-600" />
+                <span>Site gallery successfully saved and revalidated across the live website!</span>
+              </div>
+            )}
+
+            {galleryError && (
+              <div className="mb-6 flex items-center gap-2 border border-red-200 bg-red-50 p-3 text-xs text-red-700 animate-fade-in">
+                <AlertCircle className="h-4 w-4 flex-none" />
+                <span>{galleryError}</span>
+              </div>
+            )}
+
+            {yachtGallery.length === 0 ? (
+              <div className="text-center py-16 border-2 border-dashed border-navy-900/15 p-8">
+                <LayoutGrid className="mx-auto h-12 w-12 text-stone/40 mb-3" />
+                <h4 className="font-display text-base text-navy-900 font-medium">No Gallery Images Configured</h4>
+                <p className="text-xs text-stone mt-1 max-w-md mx-auto">
+                  Add photos from your media library or upload new vessel pictures to build the public showcase.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setShowGalleryPickerModal(true)}
+                  className="mt-4 btn btn-dark text-xs py-2 px-4 inline-flex items-center gap-2"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  <span>Add First Photo from Library</span>
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                {yachtGallery.map((item, idx) => (
+                  <div
+                    key={`${item.src}-${idx}`}
+                    className={`group relative flex flex-col border bg-white transition-all shadow-xs hover:shadow-md ${
+                      idx === 0
+                        ? "border-amber-400/80 ring-1 ring-amber-300/50"
+                        : "border-navy-900/10 hover:border-navy-900/30"
+                    }`}
+                  >
+                    {/* Image header */}
+                    <div className="relative h-48 w-full overflow-hidden bg-navy-950/5">
+                      <Image
+                        src={item.src}
+                        alt={item.label || "Finch 65"}
+                        fill
+                        className="object-cover transition-transform duration-300 group-hover:scale-102"
+                        sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                      />
+                      {/* Position badge */}
+                      <div className="absolute top-2 left-2 flex items-center gap-1.5">
+                        <span
+                          className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider backdrop-blur-xs font-mono shadow-xs ${
+                            idx === 0
+                              ? "bg-amber-500 text-white flex items-center gap-1"
+                              : "bg-navy-950/80 text-white"
+                          }`}
+                        >
+                          {idx === 0 && <Star className="h-2.5 w-2.5 fill-white text-white" />}
+                          #{idx + 1} {idx === 0 ? "· Main Hero" : ""}
+                        </span>
+                      </div>
+
+                      {/* Move Order Buttons */}
+                      <div className="absolute top-2 right-2 flex items-center gap-1 bg-navy-950/80 p-1 rounded-xs backdrop-blur-xs">
+                        <button
+                          type="button"
+                          onClick={() => handleMoveGallery(idx, "up")}
+                          disabled={idx === 0}
+                          className="p-1 text-white hover:text-amber-300 disabled:opacity-30 disabled:hover:text-white transition-colors"
+                          title="Move photo earlier in order"
+                        >
+                          <ArrowUp className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleMoveGallery(idx, "down")}
+                          disabled={idx === yachtGallery.length - 1}
+                          className="p-1 text-white hover:text-amber-300 disabled:opacity-30 disabled:hover:text-white transition-colors"
+                          title="Move photo later in order"
+                        >
+                          <ArrowDown className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+
+                      {/* URL Preview */}
+                      <div className="absolute bottom-2 left-2 right-2 bg-navy-950/80 px-2 py-0.5 text-[10px] font-mono text-white/90 truncate">
+                        {item.src}
+                      </div>
+                    </div>
+
+                    {/* Card Body */}
+                    <div className="p-3.5 flex flex-1 flex-col justify-between space-y-3">
+                      <div>
+                        <label className="text-[10px] font-bold uppercase tracking-wider text-stone block mb-1">
+                          Display Caption / Title
+                        </label>
+                        <input
+                          type="text"
+                          value={item.label}
+                          onChange={(e) => handleUpdateGalleryCaption(idx, e.target.value)}
+                          className="field-input py-1 text-xs font-medium w-full"
+                          placeholder="e.g. Master Stateroom, Saloon, Flybridge"
+                        />
+                      </div>
+
+                      <div className="pt-2 border-t border-navy-900/10 flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setPreviewItem({
+                                id: 0,
+                                url: item.src,
+                                filename: "",
+                                originalName: item.label,
+                                mimeType: "image/jpeg",
+                                sizeBytes: 0,
+                                category: "image",
+                                altText: item.label,
+                                createdAt: new Date(),
+                              })
+                            }
+                            className="text-stone hover:text-navy-900 inline-flex items-center gap-1 text-[11px]"
+                          >
+                            <Eye className="h-3 w-3" />
+                            <span>Preview</span>
+                          </button>
+                          {idx !== 0 && (
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                const updated = [
+                                  item,
+                                  ...yachtGallery.filter((_, i) => i !== idx),
+                                ];
+                                setYachtGallery(updated);
+                                setGallerySaving(true);
+                                const res = await saveSiteGalleryAction(updated);
+                                setGallerySaving(false);
+                                if (res.ok) {
+                                  setGallerySaved(true);
+                                  setTimeout(() => setGallerySaved(false), 3000);
+                                  router.refresh();
+                                }
+                              }}
+                              className="text-[11px] text-ocean-600 hover:text-navy-900 underline ml-2"
+                              title="Set as the main #1 photo"
+                            >
+                              Make Hero
+                            </button>
+                          )}
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveFromGallery(item.src)}
+                          className="text-red-700 hover:text-red-900 inline-flex items-center gap-1 text-[11px] p-1 font-medium"
+                          title="Remove from Site Gallery"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          <span>Remove</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {yachtGallery.length > 0 && (
+              <div className="mt-8 flex justify-end gap-3 pt-4 border-t border-navy-900/10">
+                <button
+                  type="button"
+                  onClick={handleSaveGallery}
+                  disabled={gallerySaving}
+                  className="btn btn-dark inline-flex items-center gap-2"
+                >
+                  {gallerySaving ? <Spinner className="text-ivory" /> : null}
+                  <span>Save Gallery Changes</span>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -2349,6 +2834,99 @@ export default function MediaManager({
                   setShowImagePicker(false);
                   setSiteImageTargetKey(null);
                 }}
+                className="btn btn-outline"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL 6: Gallery Photo Picker (Add from Library to Site Gallery) */}
+      {/* ========================================================================= */}
+      {showGalleryPickerModal && (
+        <Modal
+          open={showGalleryPickerModal}
+          onClose={() => setShowGalleryPickerModal(false)}
+          title="Add Photo to Finch 65 Vessel Gallery"
+        >
+          <div className="space-y-4">
+            <div className="flex items-center justify-between pb-2 border-b border-navy-900/10">
+              <p className="text-xs text-stone">
+                Click any image from your media library to add it to the live site gallery.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowGalleryPickerModal(false);
+                  setShowUploadModal(true);
+                }}
+                className="btn btn-dark text-xs py-1 px-2.5 inline-flex items-center gap-1"
+              >
+                <Upload className="h-3 w-3" />
+                <span>Upload New</span>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-[60vh] overflow-y-auto p-1">
+              {imageList.map((img) => {
+                const normUrl = img.url.split("?")[0];
+                const alreadyInGallery = yachtGallery.some((g) => {
+                  const gNorm = (g.src || "").split("?")[0];
+                  return (
+                    gNorm === normUrl ||
+                    decodeURI(gNorm) === decodeURI(normUrl) ||
+                    encodeURI(gNorm) === encodeURI(normUrl)
+                  );
+                });
+                return (
+                  <div
+                    key={img.id}
+                    onClick={() => {
+                      if (!alreadyInGallery) handleSelectForGallery(img);
+                    }}
+                    className={`group relative border overflow-hidden transition-all ${
+                      alreadyInGallery
+                        ? "border-emerald-400 bg-emerald-50/40 opacity-80 cursor-default"
+                        : "border-navy-900/15 bg-navy-950/5 hover:border-navy-900 hover:shadow-md cursor-pointer"
+                    }`}
+                  >
+                    <div className="relative h-28 w-full">
+                      <Image
+                        src={img.url}
+                        alt={img.altText || img.originalName}
+                        fill
+                        className="object-cover transition-transform group-hover:scale-105"
+                        sizes="200px"
+                      />
+                      {alreadyInGallery && (
+                        <div className="absolute top-1.5 right-1.5 bg-emerald-700 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-xs flex items-center gap-1 shadow-xs">
+                          <Check className="h-2.5 w-2.5" />
+                          <span>In Gallery</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="p-2 bg-white flex items-center justify-between gap-1">
+                      <p className="text-[11px] font-medium text-navy-900 truncate">
+                        {img.originalName}
+                      </p>
+                      {!alreadyInGallery && (
+                        <span className="text-[10px] text-teal-700 font-bold uppercase tracking-wider group-hover:underline flex-none">
+                          + Add
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="flex justify-end pt-3 border-t border-navy-900/10">
+              <button
+                type="button"
+                onClick={() => setShowGalleryPickerModal(false)}
                 className="btn btn-outline"
               >
                 Close
