@@ -107,12 +107,12 @@ export default async function AvailabilityPage() {
                 <ArrowRight className="h-4 w-4" />
               </Link>
               <a
-                href="https://wa.me/9607701001?text=Hello%20Salt%20Republic%2C%20I%20would%20like%20to%20check%20custom%20yacht%20availability%20for%20Finch%2065."
+                href="https://wa.me/9607412060?text=Hello%20Salt%20Republic%2C%20I%20would%20like%20to%20check%20custom%20yacht%20availability%20for%20Finch%2065."
                 target="_blank"
                 rel="noopener noreferrer"
                 className="btn btn-outline flex items-center justify-center gap-2 border-navy-900/30! px-8! py-4! text-navy-900! hover:bg-navy-900! hover:text-ivory!"
               >
-                <span>WhatsApp Concierge</span>
+                <span>WhatsApp (+960 741 2060)</span>
               </a>
             </div>
           </div>

@@ -597,12 +597,12 @@ export default function AvailabilityCalendar({ initialData }: AvailabilityCalend
                 {/* Direct WhatsApp Concierge for Special Requirements */}
                 <div className="mt-4 text-center">
                   <a
-                    href={`https://wa.me/9607701001?text=Hello%20Salt%20Republic%20team%2C%20I%20am%20inquiring%20about%20Finch%2065%20charter%20availability%20for%20${selectedDay.date}`}
+                    href={`https://wa.me/9607412060?text=Hello%20Salt%20Republic%20team%2C%20I%20am%20inquiring%20about%20Finch%2065%20charter%20availability%20for%20${selectedDay.date}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1.5 text-xs text-teal-300/80 transition-colors hover:text-teal-200"
                   >
-                    <span>Need a custom buyout? WhatsApp Concierge</span>
+                    <span>Need a custom buyout? WhatsApp (+960 741 2060)</span>
                     <ArrowRight className="h-3 w-3" />
                   </a>
                 </div>
