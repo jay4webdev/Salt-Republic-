@@ -5,6 +5,7 @@ const NAV = [
   { label: "Experiences", href: "/#experiences" },
   { label: "Yacht", href: "/#yacht" },
   { label: "Activities", href: "/#activities" },
+  { label: "Live Calendar", href: "/availability" },
   { label: "Book Now", href: "/book" },
 ];
 

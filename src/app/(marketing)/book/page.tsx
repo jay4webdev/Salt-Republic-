@@ -13,14 +13,14 @@ export const metadata: Metadata = {
   alternates: { canonical: "/book" },
 };
 
-type SearchParams = Promise<{ trip?: string }>;
+type SearchParams = Promise<{ trip?: string; date?: string }>;
 
 export default async function BookPage({
   searchParams,
 }: {
   searchParams: SearchParams;
 }) {
-  const { trip } = await searchParams;
+  const { trip, date } = await searchParams;
   const [trips, destinations, siteImages] = await Promise.all([
     getActiveTripTypes(),
     getActiveDestinations(),
@@ -61,6 +61,7 @@ export default async function BookPage({
                 trips={trips}
                 destinations={destinations}
                 initialSlug={trip}
+                initialDate={date}
               />
             </div>
           </div>

@@ -1,8 +1,12 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
+import Link from "next/link";
+import { Calendar, Users, AlertCircle, CheckCircle2, XCircle } from "lucide-react";
 import type { destinations, tripTypes } from "@/db/schema";
+import type { DayAvailability } from "@/lib/availability";
+import { cn } from "@/lib/format";
 import {
   ACTIVITY_OPTIONS,
   FOOD_OPTIONS,
@@ -32,10 +36,12 @@ export default function BookingForm({
   trips,
   destinations: dests,
   initialSlug,
+  initialDate,
 }: {
   trips: Trip[];
   destinations: Dest[];
   initialSlug?: string;
+  initialDate?: string;
 }) {
   const router = useRouter();
   const initialTrip =
@@ -45,10 +51,42 @@ export default function BookingForm({
     ...EMPTY,
     tripTypeId: initialTrip,
     destination: dests[0]?.name ?? "",
+    tripDate: initialDate ?? "",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
+  const [availability, setAvailability] = useState<DayAvailability | null>(null);
+  const [loadingAvailability, setLoadingAvailability] = useState(false);
+
+  // Live availability lookup when date is set
+  useEffect(() => {
+    if (!form.tripDate || !/^\d{4}-\d{2}-\d{2}$/.test(form.tripDate)) {
+      setAvailability(null);
+      return;
+    }
+
+    let isMounted = true;
+    setLoadingAvailability(true);
+
+    fetch(`/api/availability?date=${form.tripDate}`)
+      .then((res) => res.json())
+      .then((json) => {
+        if (isMounted && json.ok && json.data) {
+          setAvailability(json.data);
+        }
+      })
+      .catch((err) => {
+        console.error("Availability check failed:", err);
+      })
+      .finally(() => {
+        if (isMounted) setLoadingAvailability(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [form.tripDate]);
 
   const selectedTrip = useMemo(
     () => trips.find((t) => t.id.toString() === form.tripTypeId),
@@ -233,11 +271,23 @@ export default function BookingForm({
           {errors.guests ? (
             <p className="field-error">{errors.guests}</p>
           ) : (
-            <p className="field-hint">
-              {selectedTrip?.kind === "overnight"
-                ? "Overnight charters carry up to 10 guests."
-                : "Day charters carry up to 17 guests."}
-            </p>
+            <>
+              <p className="field-hint">
+                {selectedTrip?.kind === "overnight"
+                  ? "Overnight charters carry up to 10 guests."
+                  : "Day charters carry up to 17 guests."}
+              </p>
+              {availability &&
+                form.guests &&
+                Number(form.guests) > availability.remainingPax &&
+                availability.remainingPax > 0 && (
+                  <p className="mt-1.5 text-xs font-medium text-amber-700">
+                    ⚠️ Note: You requested {form.guests} guests, but only{" "}
+                    {availability.remainingPax} slots are currently open on{" "}
+                    {form.tripDate}.
+                  </p>
+                )}
+            </>
           )}
         </div>
       </fieldset>
@@ -293,9 +343,19 @@ export default function BookingForm({
             )}
           </div>
           <div id="field-tripDate">
-            <label htmlFor="tripDate" className="field-label">
-              Trip Date <span className="text-red-700">*</span>
-            </label>
+            <div className="flex items-center justify-between">
+              <label htmlFor="tripDate" className="field-label">
+                Trip Date <span className="text-red-700">*</span>
+              </label>
+              <Link
+                href="/availability"
+                target="_blank"
+                className="inline-flex items-center gap-1 text-[0.72rem] font-medium text-ocean-600 transition-colors hover:text-ocean-800 hover:underline"
+              >
+                <Calendar className="h-3 w-3 text-teal-600" />
+                <span>Live Calendar & Pax</span>
+              </Link>
+            </div>
             <input
               id="tripDate"
               type="date"
@@ -306,6 +366,57 @@ export default function BookingForm({
               aria-invalid={!!errors.tripDate}
             />
             {errors.tripDate && <p className="field-error">{errors.tripDate}</p>}
+
+            {/* Live Day Availability Status Indicator */}
+            {form.tripDate && (
+              <div className="mt-2 text-xs">
+                {loadingAvailability ? (
+                  <p className="flex items-center gap-1.5 text-navy-600/70">
+                    <span className="h-2 w-2 animate-ping rounded-full bg-teal-500" />
+                    Checking live yacht capacity...
+                  </p>
+                ) : availability ? (
+                  <div
+                    className={cn(
+                      "flex items-center justify-between rounded border p-2",
+                      availability.status === "available" &&
+                        "border-emerald-500/30 bg-emerald-50 text-emerald-800",
+                      availability.status === "partially_booked" &&
+                        "border-amber-500/30 bg-amber-50 text-amber-900",
+                      availability.status === "fully_booked" &&
+                        "border-rose-500/30 bg-rose-50 text-rose-800"
+                    )}
+                  >
+                    <div className="flex items-center gap-2">
+                      {availability.status === "available" && (
+                        <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                      )}
+                      {availability.status === "partially_booked" && (
+                        <AlertCircle className="h-4 w-4 text-amber-600" />
+                      )}
+                      {availability.status === "fully_booked" && (
+                        <XCircle className="h-4 w-4 text-rose-600" />
+                      )}
+                      <span className="font-medium">
+                        {availability.status === "available" &&
+                          `Fully Available — 0/${availability.maxCapacity} Pax Booked`}
+                        {availability.status === "partially_booked" &&
+                          `${availability.totalPaxBooked}/${availability.maxCapacity} Pax Booked (${availability.remainingPax} Slots Open)`}
+                        {availability.status === "fully_booked" &&
+                          `Fully Booked (${availability.totalPaxBooked}/${availability.maxCapacity} Pax Booked)`}
+                      </span>
+                    </div>
+
+                    <Link
+                      href="/availability"
+                      className="text-[0.68rem] font-medium underline hover:opacity-80"
+                    >
+                      View Calendar
+                    </Link>
+                  </div>
+                ) : null}
+              </div>
+            )}
           </div>
         </div>
 

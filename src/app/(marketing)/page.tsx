@@ -3,6 +3,7 @@ import TripTypes from "@/components/site/TripTypes";
 import Destination from "@/components/site/Destination";
 import GroupTrips from "@/components/site/GroupTrips";
 import YachtSection from "@/components/site/YachtSection";
+import CalendarCtaSection from "@/components/site/CalendarCtaSection";
 import ActivitiesSection from "@/components/site/ActivitiesSection";
 import FoodMenu from "@/components/site/FoodMenu";
 import FinalCta from "@/components/site/FinalCta";
@@ -65,6 +66,7 @@ export default async function HomePage() {
           buttonDownloads={buttonDownloads.yachtButton}
         />
       ) : null}
+      <CalendarCtaSection />
       <ActivitiesSection activities={activitiesList} />
       <FoodMenu
         diningImage={siteImages.diningImage}
