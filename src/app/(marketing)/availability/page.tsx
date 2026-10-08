@@ -81,17 +81,17 @@ export default async function AvailabilityPage() {
       </section>
 
       {/* Helpful Charter Planning Notice */}
-      <section className="border-t border-white/10 bg-navy-900/40 py-16">
+      <section className="border-t border-sand-300 bg-cream py-16 text-ink md:py-20 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
         <div className="mx-auto max-w-[1400px] px-5 sm:px-8">
           <div className="grid gap-10 lg:grid-cols-12 lg:items-center">
             <div className="lg:col-span-7">
-              <p className="font-display text-[0.68rem] uppercase tracking-[0.25em] text-teal-300">
+              <p className="font-display text-[0.68rem] uppercase tracking-[0.25em] text-ocean-600">
                 Tailored Private Charters
               </p>
-              <h2 className="display-sm mt-2 text-ivory">
+              <h2 className="display-sm mt-2 text-navy-900">
                 Need a specific departure time or multi-day expedition?
               </h2>
-              <p className="mt-4 font-light leading-relaxed text-ivory/75">
+              <p className="mt-4 font-light leading-relaxed text-stone">
                 Our onboard crew and operations team cater directly to your private itinerary.
                 If you have a special occasion, corporate group, or wish to anchor at exclusive outer atolls,
                 our reservations concierge is available on WhatsApp with instant response.
@@ -101,7 +101,7 @@ export default async function AvailabilityPage() {
             <div className="flex flex-col gap-4 sm:flex-row lg:col-span-5 lg:justify-end">
               <Link
                 href="/book"
-                className="btn btn-light flex items-center justify-center gap-2 px-8! py-4!"
+                className="btn btn-dark flex items-center justify-center gap-2 px-8! py-4! text-ivory! hover:bg-navy-800!"
               >
                 <span>Go to Booking Request</span>
                 <ArrowRight className="h-4 w-4" />
@@ -110,7 +110,7 @@ export default async function AvailabilityPage() {
                 href="https://wa.me/9607701001?text=Hello%20Salt%20Republic%2C%20I%20would%20like%20to%20check%20custom%20yacht%20availability%20for%20Finch%2065."
                 target="_blank"
                 rel="noopener noreferrer"
-                className="btn btn-outline flex items-center justify-center gap-2 border-white/30! px-8! py-4! text-ivory! hover:bg-white/10!"
+                className="btn btn-outline flex items-center justify-center gap-2 border-navy-900/30! px-8! py-4! text-navy-900! hover:bg-navy-900! hover:text-ivory!"
               >
                 <span>WhatsApp Concierge</span>
               </a>
